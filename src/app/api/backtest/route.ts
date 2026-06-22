@@ -6,7 +6,9 @@ import type { OHLCVBar, IndicatorSnapshot } from '@/types/stock'
 const MIN_BARS    = 35
 const MAX_HOLD    = 30  // 최대 보유 거래일 (이후 강제 청산)
 
-// ── 복합 스코어 계산 (-10 ~ +10) ──────────────────────────────────
+// ── 복합 스코어 계산 ──────────────────────────────────────────────
+// RSI·BB가 핵심 드라이버 (가중치 높음), MACD·MA는 보조 확인 (가중치 낮음)
+// RSI/BB 하나만 과매도여도 buy threshold(+2)에 도달하도록 설계
 function calcScore(snap: IndicatorSnapshot, prev: IndicatorSnapshot | null): number {
   let score = 0
   const rsi    = snap.rsi   ?? 50
@@ -14,41 +16,40 @@ function calcScore(snap: IndicatorSnapshot, prev: IndicatorSnapshot | null): num
   const hist   = snap.histogram ?? 0
   const prevH  = prev?.histogram ?? null
 
-  // RSI
-  if      (rsi < 30)              score += 2
-  else if (rsi < 40)              score += 1
-  else if (rsi >= 60 && rsi < 70) score -= 1
-  else if (rsi >= 70)             score -= 2
+  // RSI (-3 ~ +3) — 45 미만을 buy 영역으로 확장
+  if      (rsi < 30)              score += 3
+  else if (rsi < 45)              score += 2
+  else if (rsi >= 55 && rsi < 70) score -= 2
+  else if (rsi >= 70)             score -= 3
 
-  // 볼린저 위치
-  if      (bbPos < 0.1)                  score += 3
-  else if (bbPos < 0.2)                  score += 2
-  else if (bbPos < 0.4)                  score += 1
-  else if (bbPos >= 0.6 && bbPos < 0.8)  score -= 1
-  else if (bbPos >= 0.8 && bbPos < 0.9)  score -= 2
-  else if (bbPos >= 0.9)                 score -= 3
+  // 볼린저 위치 (-3 ~ +3)
+  if      (bbPos < 0.15)                 score += 3
+  else if (bbPos < 0.35)                 score += 2
+  else if (bbPos < 0.5)                  score += 1
+  else if (bbPos >= 0.65 && bbPos < 0.85) score -= 2
+  else if (bbPos >= 0.85)                score -= 3
 
-  // MACD 히스토그램
+  // MACD 히스토그램 (-1 ~ +1) — 가중치 절반으로 줄여 RSI/BB 신호 보호
   if (prevH !== null) {
-    if   (prevH <= 0 && hist > 0)           score += 2
-    else if (hist > 0 && hist > prevH)       score += 1
-    else if (prevH >= 0 && hist < 0)         score -= 2
-    else if (hist < 0 && hist < prevH)       score -= 1
+    if   (prevH <= 0 && hist > 0)       score += 1  // 음→양 전환
+    else if (hist > 0 && hist > prevH)  score += 1  // 양수 증가
+    else if (prevH >= 0 && hist < 0)    score -= 1  // 양→음 전환
+    else if (hist < 0 && hist < prevH)  score -= 1  // 음수 악화
   }
 
-  // MA 5/20 크로스
+  // MA 5/20 크로스 (-1 ~ +1)
   if      (snap.maCrossState === 'golden') score += 1
   else if (snap.maCrossState === 'dead')   score -= 1
 
-  // MA 20/60 크로스
+  // MA 20/60 크로스 전환 시점만 (-1 ~ +1)
   const { ma20, ma60 } = snap
   const pm20 = prev?.ma20 ?? null, pm60 = prev?.ma60 ?? null
   if (ma20 !== null && ma60 !== null && pm20 !== null && pm60 !== null) {
-    if      (pm20 <= pm60 && ma20 > ma60) score += 2
-    else if (pm20 >= pm60 && ma20 < ma60) score -= 2
+    if      (pm20 <= pm60 && ma20 > ma60) score += 1
+    else if (pm20 >= pm60 && ma20 < ma60) score -= 1
   }
 
-  // 거래량 × 방향
+  // 거래량 × 방향 (-1 ~ +1)
   const up = prev ? snap.close > prev.close : false
   if      (up  && snap.volumeRatio > 1.5) score += 1
   else if (!up && snap.volumeRatio > 1.5) score -= 1
@@ -56,6 +57,8 @@ function calcScore(snap: IndicatorSnapshot, prev: IndicatorSnapshot | null): num
   return score
 }
 
+// RSI 또는 BB 하나가 과매도 구간이면 score >= 2 → buy
+// 둘 다 과매도면 score >= 4 → strong_buy
 function scoreToSignal(s: number): string {
   if (s >= 4)  return 'strong_buy'
   if (s >= 2)  return 'buy'
