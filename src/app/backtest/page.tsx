@@ -56,8 +56,9 @@ interface BacktestResult {
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
-const pctColor  = (n: number) => n >= 0 ? '#4ECDC4' : '#FF6B6B'
-const fmtPct    = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
+const pctColor  = (n: number | null | undefined) => (n ?? 0) >= 0 ? '#4ECDC4' : '#FF6B6B'
+const fmtPct    = (n: number | null | undefined) =>
+  n == null || isNaN(n) ? '-' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
 const fmtNum    = (n: number) => n.toLocaleString('ko-KR')
 
 const CLOSE_LABEL: Record<string, string> = {
