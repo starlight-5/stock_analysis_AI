@@ -1,0 +1,40 @@
+:root {
+  --color-background-primary:   #1C2038;
+  --color-background-secondary: #252B45;
+  --color-background-tertiary:  #131626;
+  --color-text-primary:         #ECEEF8;
+  --color-text-secondary:       #7A82A8;
+  --color-border-primary:       #404880;
+  --color-border-secondary:     #2D3460;
+  --color-border-tertiary:      #1E2440;
+
+  /* 에러/경고 (다크 모드) */
+  --color-error-bg:      #2D1515;
+  --color-error-border:  #5C2020;
+  --color-error-text:    #FF8585;
+  --color-warning-bg:    #2D2210;
+  --color-warning-border:#5C4020;
+  --color-warning-text:  #FFB060;
+  --color-info-bg:       #101D35;
+  --color-info-border:   #1E3A70;
+  --color-info-text:     #7BA3FF;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Segoe UI', Roboto, sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-background-tertiary);
+}
+
+/* 스크롤바 다크 테마 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-background-tertiary); }
+::-webkit-scrollbar-thumb { background: var(--color-border-secondary); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-border-primary); }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

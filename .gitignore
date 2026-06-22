@@ -1,0 +1,49 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files (주요 자격 증명 키 보관 파일 제외)
+.env*.local
+data/watchlist.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDEs and editors (로컬 에디터 설정 제외)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# AI Agents (로컬 에이전트 승인 설정 제외)
+.claude/
+.gemini/
+
+# OS
+.DS_Store
+Thumbs.db
+
