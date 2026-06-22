@@ -75,12 +75,19 @@ function fmtVolume(v: number): string {
 function useMarketData(): MarketData | null {
   const [market, setMarket] = useState<MarketData | null>(null)
   useEffect(() => {
+    let isMounted = true
     const ctrl = new AbortController()
-    fetch('/api/market', { signal: ctrl.signal })
-      .then(r => r.json())
-      .then(d => { if (!d.error) setMarket(d) })
-      .catch(() => {})
-    return () => ctrl.abort()
+
+    const doFetch = () =>
+      fetch('/api/market', { signal: ctrl.signal })
+        .then(r => r.json())
+        .then(d => { if (isMounted && !d.error) setMarket(d) })
+        .catch(() => {})
+
+    doFetch()
+    const id = setInterval(doFetch, 5 * 60 * 1000)
+
+    return () => { isMounted = false; ctrl.abort(); clearInterval(id) }
   }, [])
   return market
 }
