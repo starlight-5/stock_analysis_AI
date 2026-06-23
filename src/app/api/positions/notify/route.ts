@@ -1,0 +1,126 @@
+import { NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
+import type { Position } from '@/types/stock'
+
+const DB_PATH      = path.join(process.cwd(), 'data', 'positions.json')
+const WEBHOOK_URL  = process.env.DISCORD_WEBHOOK_URL ?? ''
+
+const IS_KR = (t: string) => /^\d{6}$/.test(t)
+const fmtPrice = (ticker: string, p: number) =>
+  IS_KR(ticker)
+    ? `${p.toLocaleString('ko-KR')}원`
+    : `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+function diffPct(current: number, target: number): number {
+  return ((target - current) / current) * 100
+}
+
+async function fetchPrice(ticker: string): Promise<number | null> {
+  const symbol = IS_KR(ticker) ? `${ticker}.KS` : ticker
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) }
+    )
+    const json  = await res.json()
+    const meta  = json.chart?.result?.[0]?.meta
+    return meta?.regularMarketPrice ?? meta?.previousClose ?? null
+  } catch {
+    return null
+  }
+}
+
+const SIGNAL_LABEL: Record<string, string> = {
+  strong_buy: '강력매수', buy: '매수', watch: '관망', sell: '매도', strong_sell: '강력매도',
+}
+const SIGNAL_EMOJI: Record<string, string> = {
+  strong_buy: '🟢', buy: '🟢', watch: '🟡', sell: '🔴', strong_sell: '🔴',
+}
+
+// GET /api/positions/notify  →  Discord 웹훅 전송
+export async function GET() {
+  if (!WEBHOOK_URL) {
+    return NextResponse.json(
+      { error: 'DISCORD_WEBHOOK_URL 미설정 — .env.local에 추가하세요' },
+      { status: 500 }
+    )
+  }
+
+  let positions: Position[] = []
+  try { positions = JSON.parse(await fs.readFile(DB_PATH, 'utf-8')) } catch {}
+
+  const active = positions.filter(p => p.status === 'active')
+  if (!active.length) {
+    return NextResponse.json({ ok: true, sent: false, reason: '활성 포지션 없음' })
+  }
+
+  // 현재가 병렬 조회
+  const priceMap: Record<string, number | null> = Object.fromEntries(
+    await Promise.all(active.map(async p => [p.ticker, await fetchPrice(p.ticker)]))
+  )
+
+  const today = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  })
+
+  const lines: string[] = [`📊 **포지션 일일 리포트** | ${today}\n`]
+
+  for (const pos of active) {
+    const cur = priceMap[pos.ticker]
+    const em  = SIGNAL_EMOJI[pos.signal] ?? '⚪'
+    const sig = SIGNAL_LABEL[pos.signal] ?? pos.signal
+
+    lines.push(`${em} **${pos.ticker}** · ${pos.name}  \`${sig}\``)
+
+    if (cur == null) {
+      lines.push('  ⚠️ 현재가 조회 실패')
+    } else {
+      lines.push(`  현재가: **${fmtPrice(pos.ticker, cur)}**`)
+
+      // 매수 진입가 대비 수익률
+      const avgEntry = pos.entries.reduce((sum, e) => sum + e.price * (e.ratio / 100), 0)
+      if (avgEntry > 0) {
+        const ret = diffPct(avgEntry, cur)
+        const retStr = ret >= 0 ? `+${ret.toFixed(1)}%` : `${ret.toFixed(1)}%`
+        lines.push(`  진입가 대비: ${ret >= 0 ? '📈' : '📉'} **${retStr}**`)
+      }
+
+      // 목표가 진행률
+      for (let i = 0; i < pos.targets.length; i++) {
+        const t    = pos.targets[i]
+        const diff = diffPct(cur, t.price)
+        if (diff >= 0) {
+          lines.push(`  🎯 ${i + 1}차 목표 ${fmtPrice(pos.ticker, t.price)} → 목표까지 **+${diff.toFixed(1)}%**`)
+        } else {
+          lines.push(`  ✅ ${i + 1}차 목표 ${fmtPrice(pos.ticker, t.price)} → 이미 초과 (${diff.toFixed(1)}%)`)
+        }
+      }
+
+      // 손절 거리
+      const slDiff = diffPct(cur, pos.stopLoss)
+      lines.push(`  🔴 손절선 ${fmtPrice(pos.ticker, pos.stopLoss)} → ${slDiff.toFixed(1)}%`)
+    }
+
+    lines.push('')
+  }
+
+  lines.push(`_포지션 ${active.length}개 | Next.js 주식 앱_`)
+
+  const content = lines.join('\n')
+
+  const res = await fetch(WEBHOOK_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ content }),
+  })
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: `Discord 전송 실패 HTTP ${res.status}` },
+      { status: 502 }
+    )
+  }
+
+  return NextResponse.json({ ok: true, sent: true, positions: active.length })
+}

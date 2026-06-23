@@ -104,3 +104,21 @@ export interface WatchlistItem {
   addedAt: string
   memo?: string
 }
+
+// ─── 포지션 (전략 고정 추적) ──────────────────────────────────────
+export interface Position {
+  id: string
+  ticker: string
+  name: string
+  registeredAt: string
+  signal: 'strong_buy' | 'buy' | 'watch' | 'sell' | 'strong_sell'
+  summary: string
+  entryType: 'lump' | 'split'
+  entries: { price: number; ratio: number; reason: string }[]
+  stopLoss: number
+  stopLossReason: string
+  targets: { price: number; ratio: number; reason: string }[]
+  risks: string[]
+  status: 'active' | 'closed'
+  closedAt?: string
+}

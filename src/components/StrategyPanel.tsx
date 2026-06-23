@@ -100,6 +100,7 @@ function SnapshotGrid({ snap }: { snap: IndicatorSnapshot }) {
 
 interface Props {
   ticker: string
+  name?: string
   strategy: StrategyResult | null
   snapshot: IndicatorSnapshot | null
   isLoading: boolean
@@ -109,8 +110,29 @@ interface Props {
   onForceRefresh: () => void
 }
 
-export default function StrategyPanel({ ticker, strategy, snapshot, isLoading, isFallback, fromCache, onAnalyze, onForceRefresh }: Props) {
-  const [showRaw, setShowRaw] = useState(false)
+export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, onAnalyze, onForceRefresh }: Props) {
+  const [showRaw,       setShowRaw]       = useState(false)
+  const [registering,   setRegistering]   = useState(false)
+  const [registerState, setRegisterState] = useState<'idle' | 'ok' | 'err'>('idle')
+
+  const handleRegister = async () => {
+    if (!strategy) return
+    setRegistering(true)
+    setRegisterState('idle')
+    try {
+      const res = await fetch('/api/positions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ticker, name: name ?? ticker, strategy }),
+      })
+      setRegisterState(res.ok ? 'ok' : 'err')
+    } catch {
+      setRegisterState('err')
+    } finally {
+      setRegistering(false)
+      setTimeout(() => setRegisterState('idle'), 3000)
+    }
+  }
 
   return (
     <div style={{
@@ -268,6 +290,33 @@ export default function StrategyPanel({ ticker, strategy, snapshot, isLoading, i
                 {risk}
               </div>
             ))}
+          </div>
+
+          {/* 포지션 등록 */}
+          <div style={{ marginBottom: 14 }}>
+            <button
+              onClick={handleRegister}
+              disabled={registering || registerState === 'ok'}
+              style={{
+                width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
+                background: registerState === 'ok'  ? '#1D9E75'
+                          : registerState === 'err' ? '#E24B4A'
+                          : '#3B6EFF',
+                color: '#fff', fontSize: 13, fontWeight: 600,
+                cursor: registering || registerState === 'ok' ? 'default' : 'pointer',
+                transition: 'background .2s',
+              }}
+            >
+              {registering        ? '등록 중…'
+               : registerState === 'ok'  ? '✓ 포지션 등록 완료'
+               : registerState === 'err' ? '⚠ 등록 실패 — 재시도'
+               : '📌 포지션 등록'}
+            </button>
+            {registerState === 'ok' && (
+              <div style={{ fontSize: 11, color: '#1D9E75', marginTop: 5, textAlign: 'center' }}>
+                메인 페이지 포지션 섹션에서 진행 상황을 확인하세요
+              </div>
+            )}
           </div>
 
           {/* 원문 토글 */}
