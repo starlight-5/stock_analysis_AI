@@ -76,30 +76,31 @@ export async function GET() {
     if (cur == null) {
       lines.push('  ⚠️ 현재가 조회 실패')
     } else {
-      lines.push(`  현재가: **${fmtPrice(pos.ticker, cur)}**`)
-
-      // 매수 진입가 대비 수익률
+      // 현재가 + 진입가 대비 수익률 한 줄로
       const avgEntry = pos.entries.reduce((sum, e) => sum + e.price * (e.ratio / 100), 0)
       if (avgEntry > 0) {
         const ret = diffPct(avgEntry, cur)
         const retStr = ret >= 0 ? `+${ret.toFixed(1)}%` : `${ret.toFixed(1)}%`
-        lines.push(`  진입가 대비: ${ret >= 0 ? '📈' : '📉'} **${retStr}**`)
+        const retEmoji = ret >= 0 ? '📈' : '📉'
+        lines.push(`  💰 현재 **${fmtPrice(pos.ticker, cur)}**  /  진입 ${fmtPrice(pos.ticker, avgEntry)} → ${retEmoji} **${retStr}**`)
+      } else {
+        lines.push(`  💰 현재 **${fmtPrice(pos.ticker, cur)}**`)
       }
 
-      // 목표가 진행률
+      // 목표가
       for (let i = 0; i < pos.targets.length; i++) {
         const t    = pos.targets[i]
         const diff = diffPct(cur, t.price)
         if (diff >= 0) {
-          lines.push(`  🎯 ${i + 1}차 목표 ${fmtPrice(pos.ticker, t.price)} → 목표까지 **+${diff.toFixed(1)}%**`)
+          lines.push(`  🎯 ${i + 1}차 목표 ${fmtPrice(pos.ticker, t.price)} → **+${diff.toFixed(1)}%**`)
         } else {
-          lines.push(`  ✅ ${i + 1}차 목표 ${fmtPrice(pos.ticker, t.price)} → 이미 초과 (${diff.toFixed(1)}%)`)
+          lines.push(`  ✅ ${i + 1}차 목표 ${fmtPrice(pos.ticker, t.price)} → 초과달성 (${diff.toFixed(1)}%)`)
         }
       }
 
-      // 손절 거리
+      // 손절선
       const slDiff = diffPct(cur, pos.stopLoss)
-      lines.push(`  🔴 손절선 ${fmtPrice(pos.ticker, pos.stopLoss)} → ${slDiff.toFixed(1)}%`)
+      lines.push(`  🛑 손절선 ${fmtPrice(pos.ticker, pos.stopLoss)} → **${slDiff.toFixed(1)}%**`)
     }
 
     lines.push('')

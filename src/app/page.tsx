@@ -832,56 +832,51 @@ export default function HomePage() {
                           </span>
                         </div>
 
-                        {/* 매수 전략 */}
-                        <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 5, fontWeight: 500 }}>
-                            매수 {pos.entryType === 'split' ? '분할' : '일괄'}
-                          </div>
-                          {pos.entries.map((e, i) => {
-                            const dist = cur != null ? diffPct(cur, e.price) : null
-                            return (
-                              <div key={i} style={{
-                                display: 'flex', justifyContent: 'space-between',
-                                fontSize: 12, marginBottom: 3,
-                              }}>
-                                <span style={{ color: 'var(--color-text-secondary)' }}>
-                                  {pos.entryType === 'split' ? `${i + 1}차 ` : ''}{fmtCur(pos.ticker, e.price)}
-                                  {e.ratio < 100 && <span style={{ color: 'var(--color-text-secondary)', marginLeft: 4 }}>{e.ratio}%</span>}
-                                </span>
-                                {dist != null && (
-                                  <span style={{ color: dist <= 0 ? '#1D9E75' : 'var(--color-text-secondary)' }}>
-                                    {dist <= 0 ? `✓ 진입 (${dist.toFixed(1)}%)` : `${dist.toFixed(1)}% 위`}
-                                  </span>
-                                )}
-                              </div>
-                            )
-                          })}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 4, paddingTop: 4, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-                            <span style={{ color: '#888' }}>손절선 {fmtCur(pos.ticker, pos.stopLoss)}</span>
-                            {cur != null && (
-                              <span style={{ color: diffPct(cur, pos.stopLoss) >= 0 ? 'var(--color-text-secondary)' : '#E24B4A' }}>
-                                {diffPct(cur, pos.stopLoss).toFixed(1)}%
+                        {/* 공통 행 스타일 헬퍼 */}
+                        {(() => {
+                          const Row = ({ label, price, badge, right, rightColor }: {
+                            label: string; price: string; badge?: string
+                            right?: string; rightColor?: string
+                          }) => (
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: '52px 1fr auto auto',
+                              alignItems: 'center', gap: 6,
+                              fontSize: 11, marginBottom: 4,
+                            }}>
+                              <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+                              <span style={{ fontWeight: 500 }}>{price}</span>
+                              {badge
+                                ? <span style={{
+                                    fontSize: 10, padding: '1px 6px', borderRadius: 8,
+                                    background: 'var(--color-background-secondary)',
+                                    color: 'var(--color-text-secondary)',
+                                    border: '0.5px solid var(--color-border-secondary)',
+                                    whiteSpace: 'nowrap',
+                                  }}>{badge}</span>
+                                : <span />}
+                              <span style={{ color: rightColor ?? 'var(--color-text-secondary)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                {right}
                               </span>
-                            )}
-                          </div>
-                        </div>
+                            </div>
+                          )
 
-                        {/* 매도 목표 */}
-                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 5, fontWeight: 500 }}>매도 목표</div>
-                        {cur != null && pos.targets.map((t, i) => {
-                          const pct     = diffPct(cur, t.price)
-                          const reached = pct <= 0
-                          return (
-                            <div key={i} style={{ marginBottom: 6 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                                <span style={{ color: 'var(--color-text-secondary)' }}>
-                                  {i + 1}차 목표 {fmtCur(pos.ticker, t.price)}
-                                </span>
-                                <span style={{ color: reached ? '#1D9E75' : 'var(--color-text-secondary)', fontWeight: reached ? 600 : 400 }}>
+                          const BarRow = ({ label, price, pct, reached }: {
+                            label: string; price: string; pct: number; reached: boolean
+                          }) => (
+                            <div style={{ marginBottom: 6 }}>
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '52px 1fr auto',
+                                alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 3,
+                              }}>
+                                <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+                                <span style={{ fontWeight: 500 }}>{price}</span>
+                                <span style={{ color: reached ? '#1D9E75' : 'var(--color-text-secondary)', fontWeight: reached ? 600 : 400, whiteSpace: 'nowrap' }}>
                                   {reached ? '✓ 달성' : `+${pct.toFixed(1)}% 남음`}
                                 </span>
                               </div>
-                              <div style={{ height: 4, borderRadius: 2, background: 'var(--color-background-secondary)', overflow: 'hidden' }}>
+                              <div style={{ height: 3, borderRadius: 2, background: 'var(--color-background-secondary)', overflow: 'hidden' }}>
                                 <div style={{
                                   height: '100%', borderRadius: 2,
                                   background: reached ? '#1D9E75' : '#3B6EFF',
@@ -891,7 +886,56 @@ export default function HomePage() {
                               </div>
                             </div>
                           )
-                        })}
+
+                          return (
+                            <>
+                              {/* 매수 */}
+                              <div style={{ marginBottom: 8 }}>
+                                <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: 5, textTransform: 'uppercase' }}>
+                                  매수 {pos.entryType === 'split' ? '분할' : '일괄'}
+                                </div>
+                                {pos.entries.map((e, i) => {
+                                  const dist = cur != null ? diffPct(cur, e.price) : null
+                                  return (
+                                    <Row key={i}
+                                      label={pos.entryType === 'split' ? `${i + 1}차` : '진입가'}
+                                      price={fmtCur(pos.ticker, e.price)}
+                                      badge={pos.entryType === 'split' ? `${e.ratio}%` : undefined}
+                                      right={dist == null ? undefined : dist <= 0 ? `✓ 진입 (${dist.toFixed(1)}%)` : `${dist.toFixed(1)}% 위`}
+                                      rightColor={dist != null && dist <= 0 ? '#1D9E75' : undefined}
+                                    />
+                                  )
+                                })}
+                                <div style={{ height: '0.5px', background: 'var(--color-border-tertiary)', margin: '4px 0' }} />
+                                <Row
+                                  label="손절선"
+                                  price={fmtCur(pos.ticker, pos.stopLoss)}
+                                  right={cur != null ? `${diffPct(cur, pos.stopLoss).toFixed(1)}%` : undefined}
+                                  rightColor={cur != null && diffPct(cur, pos.stopLoss) < 0 ? '#E24B4A' : undefined}
+                                />
+                              </div>
+
+                              {/* 매도 */}
+                              <div>
+                                <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: 5, textTransform: 'uppercase' }}>
+                                  매도 목표
+                                </div>
+                                {pos.targets.map((t, i) => {
+                                  const pct     = cur != null ? diffPct(cur, t.price) : 0
+                                  const reached = cur != null && pct <= 0
+                                  return (
+                                    <BarRow key={i}
+                                      label={`${i + 1}차 목표`}
+                                      price={fmtCur(pos.ticker, t.price)}
+                                      pct={pct}
+                                      reached={reached}
+                                    />
+                                  )
+                                })}
+                              </div>
+                            </>
+                          )
+                        })()}
 
                       </div>
                     )
