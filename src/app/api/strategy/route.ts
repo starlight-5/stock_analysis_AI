@@ -33,14 +33,43 @@ function setCachedStrategy(ticker: string, data: object) {
   strategyCache.set(ticker, { data, expiresAt: Date.now() + STRATEGY_TTL_MS })
 }
 
+// ─── Yahoo Finance 뉴스 fetcher ──────────────────────────────────
+
+interface NewsItem {
+  title: string
+  publisher: string
+  date: string
+}
+
+async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
+  try {
+    const symbol = /^\d{6}$/.test(ticker) ? `${ticker}.KS` : ticker
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&newsCount=8&quotesCount=0&enableFuzzyQuery=false`,
+      {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(6000),
+      }
+    )
+    const json = await res.json()
+    return (json.news ?? []).slice(0, 6).map((n: any) => ({
+      title:     n.title ?? '',
+      publisher: n.publisher ?? '',
+      date:      n.providerPublishTime
+        ? new Date(n.providerPublishTime * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '',
+    }))
+  } catch {
+    return []
+  }
+}
+
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
-/**
- * 주가 및 지표 요약을 받아 Gemini 모델에 보낼 고도화된 프롬프트를 생성합니다.
- */
-function buildPrompt(ticker: string, snap: IndicatorSnapshot): string {
-  const fmt  = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
-  const pct  = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
-  const won  = (v: number | null) => v == null ? 'N/A' : `${v.toLocaleString('ko-KR')}원`
+
+function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]): string {
+  const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
+  const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
+  const won = (v: number | null) => v == null ? 'N/A' : `${v.toLocaleString('ko-KR')}원`
 
   const bbPos = snap.bbPosition == null
     ? 'N/A'
@@ -49,58 +78,64 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot): string {
     : `중간 (${pct(snap.bbPosition)})`
 
   const crossLabels: Record<IndicatorSnapshot['maCrossState'], string> = {
-    golden: '골든크로스 (5일선 > 20일선)',
-    dead:   '데드크로스 (5일선 < 20일선)',
+    golden:  '골든크로스 (5일선 > 20일선)',
+    dead:    '데드크로스 (5일선 < 20일선)',
     neutral: '중립',
   }
-  const crossLabel = crossLabels[snap.maCrossState]
+
+  const newsSection = news.length > 0
+    ? news.map((n, i) => `${i + 1}. [${n.date}] ${n.title} (${n.publisher})`).join('\n')
+    : '뉴스를 가져오지 못했습니다. 기술적 지표만으로 분석하세요.'
 
   return `
-당신은 주식 기술적 분석 전문가입니다. 아래 지표를 종합 분석하여 매매 전략을 수립하세요.
+당신은 주식 기술적 분석 + 뉴스 감성 분석 전문가입니다.
+아래 기술적 지표와 최근 뉴스를 종합 분석하여 매매 전략을 수립하세요.
+뉴스의 긍정·부정 sentiment가 기술적 신호와 충돌하면 이를 반드시 반영하고 risks에 명시하세요.
 
 ## 종목 정보
 - 티커: ${ticker}
 - 현재가: ${won(snap.close)}
 
-## 기술적 지표 (최신값)
-- RSI(14): ${fmt(snap.rsi, 1)} ${snap.rsi == null ? '' : snap.rsi < 30 ? '⚠️ 과매도(강한 매수 기회)' : snap.rsi > 70 ? '⚠️ 과매수(차익실현 국면)' : ''}
+## 기술적 지표 (일봉 기준 최신값)
+- RSI(14): ${fmt(snap.rsi, 1)}${snap.rsi == null ? '' : snap.rsi < 30 ? ' ⚠️ 과매도' : snap.rsi > 70 ? ' ⚠️ 과매수' : ''}
 - MACD: ${fmt(snap.macd)} / 시그널: ${fmt(snap.signal)} / 히스토그램: ${fmt(snap.histogram)}
 - 볼린저 밴드: 상단 ${won(snap.bbUpper)} / 중심 ${won(snap.bbMid)} / 하단 ${won(snap.bbLower)}
 - 밴드 내 위치: ${bbPos}
 - 이동평균: MA5 ${won(snap.ma5)} / MA20 ${won(snap.ma20)} / MA60 ${won(snap.ma60)} / MA120 ${won(snap.ma120)}
-- 이동평균 크로스: ${crossLabel}
+- 이동평균 크로스: ${crossLabels[snap.maCrossState]}
 - 거래량 비율 (최근5일/20일평균): ${fmt(snap.volumeRatio, 2)}배
 
-## 출력 형식 (반드시 JSON으로만 응답)
-다음 JSON 구조를 정확히 따르세요. 마크다운 코드블록(예: \`\`\`json ...) 없이 오직 순수 JSON 데이터만 리턴하세요.
+## 최근 뉴스 (Yahoo Finance)
+${newsSection}
 
+## 출력 형식 (반드시 순수 JSON만 — 마크다운 코드블록 없이)
 {
   "signal": "strong_buy | buy | watch | sell | strong_sell 중 하나",
-  "summary": "현재 주가 지표 상황과 핵심 포인트를 2-3문장으로 간결하게 요약",
+  "summary": "기술적 지표와 뉴스를 종합한 핵심 포인트를 2-3문장으로 요약. 뉴스가 있으면 반드시 언급",
   "buyStrategy": {
-    "type": "lump 또는 split (lump = 일괄매수, split = 분할매수)",
+    "type": "lump 또는 split",
     "entries": [
-      { "price": 정수숫자, "ratio": 진입비중퍼센트(0-100), "reason": "이 가격대에 매수 진입해야 하는 명확한 기술적 이유" }
+      { "price": 정수, "ratio": 비중(0-100), "reason": "기술적 근거 또는 뉴스 근거" }
     ],
-    "stopLoss": 정수숫자,
-    "stopLossReason": "주요 지지선 이탈 등 구체적인 손절 이유"
+    "stopLoss": 정수,
+    "stopLossReason": "구체적 손절 근거"
   },
   "sellStrategy": {
     "targets": [
-      { "price": 정수숫자, "ratio": 매도비중퍼센트(0-100), "reason": "해당 가격 목표 도달 시 차익실현 해야 하는 이유" }
+      { "price": 정수, "ratio": 비중(0-100), "reason": "목표가 근거" }
     ]
   },
-  "risks": ["구체적인 리스크 요인 1", "구체적인 리스크 요인 2", "구체적인 리스크 요인 3"]
+  "risks": ["리스크 1 (가능하면 뉴스 근거 포함)", "리스크 2", "리스크 3"]
 }
 
 ## 전략 작성 규칙
-1. split(분할매수) 조건: RSI < 40 이거나 하락 추세이거나 볼린저 밴드 하단 근처일 때 -> 2~3회 분할 진입 추천
-2. lump(일괄매수) 조건: 강력한 모멘텀 상승세(거래량 급증 + 골든크로스 발생 + RSI 50-60대 골든존 진입)
-3. 1차 목표가: 현재가 기준 대략 +5~8%, 2차 목표가: +12~20%
-4. 손절선: 현재가 기준 대략 -5~8% 범위에서 주요 지지선 가격으로 설정
-5. 분할매수 시 entries 배열은 반드시 2개 이상이어야 하며, 각 비중(ratio)의 총합은 정확히 100이어야 합니다.
-6. 모든 가격 필드는 정수(Integer)로 소수점 없이 표현하세요.
-7. 리스크 요인은 구체적이고 설득력 있는 내용을 최소 3가지 기입하세요.
+1. split 조건: RSI < 40 또는 하락 추세 또는 BB 하단 근처 또는 부정적 뉴스 존재 → 2~3회 분할 진입
+2. lump 조건: 강한 모멘텀 (거래량 급증 + 골든크로스 + RSI 50~65) AND 긍정적/중립 뉴스
+3. 1차 목표: +5~8%, 2차 목표: +12~20%
+4. 손절선: -5~8% 범위 내 주요 지지선
+5. split 시 entries 2개 이상, ratio 합계 정확히 100
+6. 모든 가격은 정수
+7. risks 최소 3개, 뉴스에서 발견된 리스크 우선 반영
 `
 }
 
@@ -342,11 +377,11 @@ export async function POST(req: NextRequest) {
       throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
     }
 
-    // 4. Gemini REST API 프롬프트 조립
-    const prompt = buildPrompt(ticker, snap)
+    // 4. 뉴스 + 프롬프트 조립 (뉴스 실패해도 분석 계속)
+    const news   = await fetchYahooNews(ticker)
+    const prompt = buildPrompt(ticker, snap, news)
 
-    // 5. REST API를 사용하여 Gemini 3.1 Flash Lite에 직접 POST 요청 전송
-    // responseMimeType은 v1beta 전용 파라미터이므로 v1beta 엔드포인트를 사용합니다.
+    // 5. Gemini REST API 호출
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
       {
