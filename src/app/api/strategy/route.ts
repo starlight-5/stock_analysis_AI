@@ -67,9 +67,18 @@ async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
 
 function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]): string {
+  const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
   const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
-  const won = (v: number | null) => v == null ? 'N/A' : `${v.toLocaleString('ko-KR')}원`
+  const fmtPrice = (v: number | null) => {
+    if (v == null) return 'N/A'
+    return isKR
+      ? `${Math.round(v).toLocaleString('ko-KR')}원`
+      : `$${v.toFixed(2)}`
+  }
+
+  const priceUnit = isKR ? '원 단위 정수' : 'USD 소수점 2자리 숫자'
+  const currentPrice = snap.close
 
   const bbPos = snap.bbPosition == null
     ? 'N/A'
@@ -85,7 +94,7 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]):
 
   const newsSection = news.length > 0
     ? news.map((n, i) => `${i + 1}. [${n.date}] ${n.title} (${n.publisher})`).join('\n')
-    : '뉴스를 가져오지 못했습니다. 기술적 지표만으로 분석하세요.'
+    : '뉴스 없음 — 기술적 지표만으로 판단할 것'
 
   return `
 당신은 주식 기술적 분석 + 뉴스 감성 분석 전문가입니다.
@@ -94,14 +103,15 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]):
 
 ## 종목 정보
 - 티커: ${ticker}
-- 현재가: ${won(snap.close)}
+- 현재가: ${fmtPrice(currentPrice)}
+- 가격 단위: ${priceUnit} (JSON 내 모든 price 필드에 이 단위를 사용할 것)
 
 ## 기술적 지표 (일봉 기준 최신값)
 - RSI(14): ${fmt(snap.rsi, 1)}${snap.rsi == null ? '' : snap.rsi < 30 ? ' ⚠️ 과매도' : snap.rsi > 70 ? ' ⚠️ 과매수' : ''}
 - MACD: ${fmt(snap.macd)} / 시그널: ${fmt(snap.signal)} / 히스토그램: ${fmt(snap.histogram)}
-- 볼린저 밴드: 상단 ${won(snap.bbUpper)} / 중심 ${won(snap.bbMid)} / 하단 ${won(snap.bbLower)}
+- 볼린저 밴드: 상단 ${fmtPrice(snap.bbUpper)} / 중심 ${fmtPrice(snap.bbMid)} / 하단 ${fmtPrice(snap.bbLower)}
 - 밴드 내 위치: ${bbPos}
-- 이동평균: MA5 ${won(snap.ma5)} / MA20 ${won(snap.ma20)} / MA60 ${won(snap.ma60)} / MA120 ${won(snap.ma120)}
+- 이동평균: MA5 ${fmtPrice(snap.ma5)} / MA20 ${fmtPrice(snap.ma20)} / MA60 ${fmtPrice(snap.ma60)} / MA120 ${fmtPrice(snap.ma120)}
 - 이동평균 크로스: ${crossLabels[snap.maCrossState]}
 - 거래량 비율 (최근5일/20일평균): ${fmt(snap.volumeRatio, 2)}배
 
@@ -115,14 +125,14 @@ ${newsSection}
   "buyStrategy": {
     "type": "lump 또는 split",
     "entries": [
-      { "price": 정수, "ratio": 비중(0-100), "reason": "기술적 근거 또는 뉴스 근거" }
+      { "price": ${priceUnit}, "ratio": 비중(0-100), "reason": "기술적 근거 또는 뉴스 근거" }
     ],
-    "stopLoss": 정수,
+    "stopLoss": ${priceUnit},
     "stopLossReason": "구체적 손절 근거"
   },
   "sellStrategy": {
     "targets": [
-      { "price": 정수, "ratio": 비중(0-100), "reason": "목표가 근거" }
+      { "price": ${priceUnit}, "ratio": 비중(0-100), "reason": "목표가 근거" }
     ]
   },
   "risks": ["리스크 1 (가능하면 뉴스 근거 포함)", "리스크 2", "리스크 3"]
@@ -134,8 +144,19 @@ ${newsSection}
 3. 1차 목표: +5~8%, 2차 목표: +12~20%
 4. 손절선: -5~8% 범위 내 주요 지지선
 5. split 시 entries 2개 이상, ratio 합계 정확히 100
-6. 모든 가격은 정수
+6. 모든 price 값은 ${priceUnit}로 출력 (문자열 아닌 숫자)
 7. risks 최소 3개, 뉴스에서 발견된 리스크 우선 반영
+8. signal과 entries 가격 일관성 (반드시 준수):
+   - strong_buy/buy: 1차 진입가 ≤ 현재가 ${fmtPrice(currentPrice)}
+   - watch: 모든 진입가 < 현재가 × 0.97 (최소 -3% 이하에서만 진입 대기)
+   - sell/strong_sell: 모든 진입가 < 현재가 × 0.90 (큰 폭 하락 후에만 재진입 고려)
+9. watch/sell/strong_sell 시그널 시 buyStrategy 처리:
+   - entries는 1개만 작성 (하락 후 재진입 참고용, type은 "split" 고정)
+   - summary에 "현재 진입 비추천" 문구 반드시 포함
+10. 목표가 일관성:
+    - strong_buy/buy: 모든 targets price > 현재가 ${fmtPrice(currentPrice)}
+    - sell/strong_sell: targets는 빈 배열([])로 작성 가능
+11. 분할 매수 간격: split 시 각 entries 진입가 간격 최소 2% 이상 차이 (예: 1차 ${fmtPrice(currentPrice)} → 2차는 최소 ${fmtPrice(currentPrice != null ? currentPrice * 0.98 : null)} 이하)
 `
 }
 
@@ -147,7 +168,20 @@ function parseStrategyResponse(
   raw: string,
   ticker: string
 ): StrategyResult {
-  // 혹시 모를 마크다운 태그나 공백 제거
+  const isKR = /^\d{6}$/.test(ticker)
+
+  // 숫자가 아닌 문자(원, $, 콤마 등)가 섞인 가격 값을 안전하게 숫자로 변환
+  const sanitizePrice = (v: any): number => {
+    if (typeof v === 'number' && isFinite(v)) {
+      return isKR ? Math.round(v) : Math.round(v * 100) / 100
+    }
+    if (typeof v === 'string') {
+      const n = parseFloat(v.replace(/[^0-9.]/g, ''))
+      if (!isNaN(n)) return isKR ? Math.round(n) : Math.round(n * 100) / 100
+    }
+    return 0
+  }
+
   const cleaned = raw
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
@@ -158,7 +192,6 @@ function parseStrategyResponse(
     parsed = JSON.parse(cleaned)
   } catch {
     console.error('Gemini 응답 JSON 파싱 실패, 원문:', raw.slice(0, 300))
-    // 파싱에 실패할 경우 기본 스태틱 객체 반환
     return {
       ticker,
       generatedAt: new Date().toISOString(),
@@ -183,12 +216,16 @@ function parseStrategyResponse(
     signal: parsed.signal ?? 'watch',
     buyStrategy: {
       type: parsed.buyStrategy?.type ?? 'split',
-      entries: (parsed.buyStrategy?.entries ?? []).sort((a: any, b: any) => b.price - a.price),
-      stopLoss: parsed.buyStrategy?.stopLoss ?? 0,
+      entries: (parsed.buyStrategy?.entries ?? [])
+        .map((e: any) => ({ ...e, price: sanitizePrice(e.price) }))
+        .sort((a: any, b: any) => b.price - a.price),
+      stopLoss: sanitizePrice(parsed.buyStrategy?.stopLoss),
       stopLossReason: parsed.buyStrategy?.stopLossReason ?? '리스크 한도 초과 시 손절',
     },
     sellStrategy: {
-      targets: (parsed.sellStrategy?.targets ?? []).sort((a: any, b: any) => a.price - b.price),
+      targets: (parsed.sellStrategy?.targets ?? [])
+        .map((t: any) => ({ ...t, price: sanitizePrice(t.price) }))
+        .sort((a: any, b: any) => a.price - b.price),
     },
     risks: parsed.risks ?? ['시장 변동성 리스크', '종목 개별 재무 위험', '추세 반전 우려'],
     rawText: raw,
