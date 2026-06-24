@@ -24,8 +24,14 @@ function SignalBadge({ signal }: { signal: StrategyResult['signal'] }) {
   )
 }
 
-function PriceRow({ label, price, ratio, reason, color }: {
-  label: string; price: number; ratio?: number; reason: string; color: string
+function formatPrice(price: number, isKR: boolean): string {
+  return isKR
+    ? price.toLocaleString('ko-KR') + '원'
+    : '$' + price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function PriceRow({ label, price, ratio, reason, color, isKR }: {
+  label: string; price: number; ratio?: number; reason: string; color: string; isKR: boolean
 }) {
   return (
     <div style={{
@@ -38,7 +44,7 @@ function PriceRow({ label, price, ratio, reason, color }: {
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-            {price.toLocaleString('ko-KR')}원
+            {formatPrice(price, isKR)}
           </span>
           {ratio !== undefined && (
             <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{ratio}% 비중</span>
@@ -50,7 +56,7 @@ function PriceRow({ label, price, ratio, reason, color }: {
   )
 }
 
-function SnapshotGrid({ snap }: { snap: IndicatorSnapshot }) {
+function SnapshotGrid({ snap, isKR }: { snap: IndicatorSnapshot; isKR: boolean }) {
   const items = [
     {
       label: 'RSI (14)', value: snap.rsi?.toFixed(1) ?? 'N/A',
@@ -80,7 +86,7 @@ function SnapshotGrid({ snap }: { snap: IndicatorSnapshot }) {
       color: snap.volumeRatio > 1.5 ? '#1D9E75' : 'var(--color-text-secondary)',
     },
     {
-      label: '현재가', value: `${snap.close.toLocaleString()}원`,
+      label: '현재가', value: formatPrice(snap.close, isKR),
       sub: '', color: 'var(--color-text-primary)',
     },
   ]
@@ -114,6 +120,7 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
   const [showRaw,       setShowRaw]       = useState(false)
   const [registering,   setRegistering]   = useState(false)
   const [registerState, setRegisterState] = useState<'idle' | 'ok' | 'err'>('idle')
+  const isKR = /^\d{6}$/.test(ticker)
 
   const handleRegister = async () => {
     if (!strategy) return
@@ -235,7 +242,7 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
           </div>
 
           {/* 지표 스냅샷 */}
-          <SnapshotGrid snap={snapshot} />
+          <SnapshotGrid snap={snapshot} isKR={isKR} />
 
           {/* 매수 전략 */}
           <div style={{ marginBottom: 16 }}>
@@ -254,14 +261,14 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
                 key={i}
                 label={strategy.buyStrategy.type === 'split' ? `${i + 1}차 매수` : '진입가'}
                 price={entry.price} ratio={entry.ratio} reason={entry.reason}
-                color="#1D9E75"
+                color="#1D9E75" isKR={isKR}
               />
             ))}
             <PriceRow
               label="손절선"
               price={strategy.buyStrategy.stopLoss}
               reason={strategy.buyStrategy.stopLossReason}
-              color="#888780"
+              color="#888780" isKR={isKR}
             />
           </div>
 
@@ -273,7 +280,7 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
                 key={i}
                 label={`${i + 1}차 목표`}
                 price={target.price} ratio={target.ratio} reason={target.reason}
-                color="#E24B4A"
+                color="#E24B4A" isKR={isKR}
               />
             ))}
           </div>

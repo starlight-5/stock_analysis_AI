@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import type { WatchlistItem, Position } from '@/types/stock'
 import type { RankingItem } from './api/rankings/route'
+import type { QuoteData } from './api/quotes/route'
 import SearchBar from '@/components/SearchBar'
 
 // ─── 타입 ────────────────────────────────────────────────────────
@@ -188,6 +189,26 @@ function useWatchlist() {
   return { watchlist, watchedSet, add, remove }
 }
 
+type WatchQuotes = Record<string, QuoteData | null>
+
+function useWatchlistData(tickers: string[]) {
+  const [quotes, setQuotes] = useState<WatchQuotes>({})
+  const key = tickers.join(',')
+
+  useEffect(() => {
+    if (!tickers.length) return
+    const ctrl = new AbortController()
+    fetch(`/api/quotes?tickers=${key}`, { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(data => { if (!ctrl.signal.aborted) setQuotes(data) })
+      .catch(() => {})
+    return () => ctrl.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return { quotes }
+}
+
 function usePositions() {
   const [positions, setPositions] = useState<Position[]>([])
   const [prices,    setPrices]    = useState<Record<string, number | null>>({})
@@ -359,19 +380,47 @@ function useMarketStatus() {
 
 // ─── 서브 컴포넌트 ────────────────────────────────────────────────
 
-function TickerIcon({ ticker, size = 36 }: { ticker: string; size?: number }) {
+function TickerIcon({ ticker, size = 36, market }: { ticker: string; size?: number; market?: 'us' | 'kr' }) {
+  const [imgFailed, setImgFailed] = useState(false)
   const color = colorFor(ticker)
+  const radius = Math.round(size * 0.3)
+  const isKR = market === 'kr' || /^\d+$/.test(ticker)
+  const imgSrc = isKR
+    ? `https://static.toss.im/png-icons/securities/icn-sec-fill-A${ticker}.png`
+    : `https://financialmodelingprep.com/image-stock/${ticker}.png`
+
   return (
     <div style={{
-      width: size, height: size, borderRadius: Math.round(size * 0.3),
+      width: size, height: size, borderRadius: radius,
       background: color + '1A', border: `1px solid ${color}33`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontWeight: 700, fontSize: size < 32 ? 9 : 11, color, flexShrink: 0,
-      letterSpacing: '-0.5px',
+      overflow: 'hidden', flexShrink: 0,
     }}>
-      {ticker.slice(0, 4)}
+      {!imgFailed ? (
+        <img
+          src={imgSrc}
+          alt={ticker}
+          width={size}
+          height={size}
+          style={{ objectFit: 'cover', display: 'block' }}
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <span style={{
+          fontWeight: 700, fontSize: size < 32 ? 9 : 11, color,
+          letterSpacing: '-0.5px',
+        }}>
+          {ticker.slice(0, 4)}
+        </span>
+      )}
     </div>
   )
+}
+
+const NAME_SUFFIXES = /\s+(Inc\.?|Corp\.?|Corporation|Holdings?|Ltd\.?|Limited|Co\.?|Group|Plc\.?|N\.V\.?|S\.A\.?|Class\s+[A-C]|Ordinary\s+Shares?)\s*$/gi
+
+function shortenName(name: string): string {
+  return name.replace(NAME_SUFFIXES, '').replace(/[,.\s]+$/, '').trim()
 }
 
 function StatusDot({ label, hours, active }: { label: string; hours: string; active?: boolean }) {
@@ -458,13 +507,13 @@ const RankingRow = memo(function RankingRow({
       </span>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <TickerIcon ticker={item.symbol} size={34} />
+        <TickerIcon ticker={item.symbol} size={34} market={item.market} />
         <div style={{ minWidth: 0 }}>
           <div style={{
             fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {item.name}
+            {shortenName(item.name)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 1 }}>
             {item.symbol}
@@ -518,23 +567,26 @@ const RankingRow = memo(function RankingRow({
  * → memo(SidebarItem)이 watchlist 순서 변경 없이는 리렌더되지 않음.
  */
 const SidebarItem = memo(function SidebarItem({
-  item, isLast, navigate, remove,
+  item, isLast, navigate, remove, quote,
 }: {
   item: WatchlistItem
   isLast: boolean
   navigate: (path: string) => void
   remove: (ticker: string) => void
+  quote: QuoteData | null
 }) {
   const [hovered, setHovered] = useState(false)
   const isKR = IS_KR_RE.test(item.ticker)
+  const up = (quote?.changePct ?? 0) >= 0
+  const changeColor = up ? '#4ADE80' : '#FF5A5A'
 
   return (
     <div
-      onClick={() => navigate(`/stock/${item.ticker}`)} // [FIX 1]
+      onClick={() => navigate(`/stock/${item.ticker}`)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 10,
+        display: 'flex', alignItems: 'center', gap: 8,
         padding: '10px 14px',
         borderBottom: isLast ? 'none' : '1px solid var(--color-border-tertiary)',
         cursor: 'pointer',
@@ -542,13 +594,15 @@ const SidebarItem = memo(function SidebarItem({
         transition: 'background .1s',
       }}
     >
-      <TickerIcon ticker={item.ticker} size={32} />
+      <TickerIcon ticker={item.ticker} size={32} market={isKR ? 'kr' : 'us'} />
+
+      {/* 종목명 + 티커 */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {item.name}
+          {shortenName(item.name)}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
           <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{item.ticker}</span>
@@ -563,13 +617,26 @@ const SidebarItem = memo(function SidebarItem({
           </span>
         </div>
       </div>
+
+      {/* 등락률 */}
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        {quote ? (
+          <div style={{ fontSize: 12, fontWeight: 600, color: changeColor }}>
+            {up ? '+' : ''}{quote.changePct.toFixed(2)}%
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>—</div>
+        )}
+      </div>
+
+      {/* 삭제 버튼 */}
       <button
-        onClick={e => { e.stopPropagation(); remove(item.ticker) }} // [FIX 1]
+        onClick={e => { e.stopPropagation(); remove(item.ticker) }}
         style={{
           background: 'none', border: 'none',
           color: hovered ? 'var(--color-text-secondary)' : 'transparent',
           cursor: 'pointer', fontSize: 13, padding: '2px 4px',
-          transition: 'color .15s',
+          transition: 'color .15s', flexShrink: 0,
         }}
       >
         ✕
@@ -588,6 +655,8 @@ export default function HomePage() {
   const [sortMode,  setSortMode]  = useState<SortMode>('dollar')
   const { rankings, error: rankError, loading: rankLoading, refreshing: rankRefreshing, lastUpdated: rankLastUpdated } = useRankings(marketTab)
   const { watchlist, watchedSet, add: addToWatchlist, remove: removeTicker } = useWatchlist()
+  const watchTickers = useMemo(() => watchlist.map(w => w.ticker), [watchlist])
+  const { quotes: watchQuotes } = useWatchlistData(watchTickers)
   const { positions, prices, close: closePosition } = usePositions()
 
   const [showAddForm, setShowAddForm] = useState(false)
@@ -1198,6 +1267,7 @@ export default function HomePage() {
                     isLast={idx === watchlist.length - 1}
                     navigate={navigate}
                     remove={removeTicker}
+                    quote={watchQuotes[item.ticker] ?? null}
                   />
                 ))
               )}

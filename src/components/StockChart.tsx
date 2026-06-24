@@ -175,7 +175,7 @@ export default function StockChart({
 
             {/* 이동평균선 */}
             <Line yAxisId="price" type="monotone" dataKey="ma5" stroke="#EF9F27" strokeWidth={1} dot={false} name="MA5" connectNulls />
-            <Line yAxisId="price" type="monotone" dataKey="ma20" stroke="#E24B4A" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="MA20" connectNulls />
+            <Line yAxisId="price" type="monotone" dataKey="ma20" stroke="#E24B4A" strokeWidth={1.5} dot={false} name="MA20" connectNulls />
             <Line yAxisId="price" type="monotone" dataKey="ma60" stroke="#1D9E75" strokeWidth={1.5} dot={false} name="MA60" connectNulls />
 
             {/* 종가 라인 (캔들 대신) */}
