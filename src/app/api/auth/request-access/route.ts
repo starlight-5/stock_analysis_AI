@@ -1,0 +1,19 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function POST(req: NextRequest) {
+  const { email } = await req.json()
+  if (!email) return NextResponse.json({ error: '이메일 필요' }, { status: 400 })
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL
+  if (webhookUrl) {
+    fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: `🔔 **접근 요청** | \`${email}\` 님이 서비스 접근을 요청했습니다.`,
+      }),
+    }).catch(() => {})
+  }
+
+  return NextResponse.json({ ok: true })
+}

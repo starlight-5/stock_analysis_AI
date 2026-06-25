@@ -21,22 +21,45 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [denied, setDenied] = useState(false)   // 허용되지 않은 사용자
+  const [requested, setRequested] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [reqLoading, setReqLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setDenied(false)
+    setRequested(false)
 
     const result = await signIn('credentials', { email, password, redirect: false })
 
-    if (result?.error) {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
-      setLoading(false)
-    } else {
+    if (!result?.error) {
       router.push('/')
       router.refresh()
+      return
     }
+
+    if (result.error === 'AccessDenied') {
+      // 케이스 3: 올바른 계정이지만 허용되지 않은 사용자
+      setDenied(true)
+    } else {
+      // 케이스 2, 4: 틀린 이메일 또는 비밀번호
+      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+    }
+    setLoading(false)
+  }
+
+  const handleRequestAccess = async () => {
+    setReqLoading(true)
+    await fetch('/api/auth/request-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    setRequested(true)
+    setReqLoading(false)
   }
 
   const handleGoogle = () => signIn('google', { callbackUrl: '/' })
@@ -68,16 +91,68 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>이메일</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            <input type="email" value={email} onChange={e => { setEmail(e.target.value); setDenied(false); setError('') }}
               required placeholder="example@email.com" style={inputStyle} />
           </div>
           <div>
             <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>비밀번호</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            <input type="password" value={password} onChange={e => { setPassword(e.target.value); setDenied(false); setError('') }}
               required placeholder="8자 이상" style={inputStyle} />
           </div>
 
-          {error && <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>{error}</p>}
+          {/* 케이스 2, 4: 틀린 자격증명 */}
+          {error && (
+            <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>{error}</p>
+          )}
+
+          {/* 케이스 3: 허용되지 않은 사용자 */}
+          {denied && !requested && (
+            <div style={{
+              background: 'rgba(255,90,90,0.08)',
+              border: '1px solid rgba(255,90,90,0.3)',
+              borderRadius: 8,
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}>
+              <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>
+                허용되지 않은 사용자입니다.
+              </p>
+              <button
+                type="button"
+                onClick={handleRequestAccess}
+                disabled={reqLoading}
+                style={{
+                  padding: '8px 12px',
+                  background: reqLoading ? '#2D3460' : 'rgba(255,90,90,0.15)',
+                  color: '#FF8585',
+                  border: '1px solid rgba(255,90,90,0.4)',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: reqLoading ? 'not-allowed' : 'pointer',
+                  width: '100%',
+                }}
+              >
+                {reqLoading ? '요청 전송 중...' : '관리자에게 접근 요청 보내기'}
+              </button>
+            </div>
+          )}
+
+          {/* 요청 완료 */}
+          {requested && (
+            <div style={{
+              background: 'rgba(59,110,255,0.08)',
+              border: '1px solid rgba(59,110,255,0.3)',
+              borderRadius: 8,
+              padding: '12px 14px',
+            }}>
+              <p style={{ margin: 0, color: '#5B8BFF', fontSize: 13 }}>
+                ✓ 접근 요청이 전송되었습니다. 관리자 승인 후 이용 가능합니다.
+              </p>
+            </div>
+          )}
 
           <button type="submit" disabled={loading} style={{
             padding: '11px',
