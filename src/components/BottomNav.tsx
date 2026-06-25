@@ -12,14 +12,16 @@ export default function BottomNav() {
 
   useEffect(() => {
     if (status !== 'authenticated') return
-    fetch('/api/positions')
-      .then(r => r.json())
-      .then(data => {
+    const doFetch = async () => {
+      try {
+        const r    = await fetch('/api/positions')
+        const data = await r.json()
         if (Array.isArray(data)) {
           setActiveCount(data.filter((p: { status: string }) => p.status === 'active').length)
         }
-      })
-      .catch(() => {})
+      } catch {}
+    }
+    doFetch()
   }, [pathname, status])
 
   if (status === 'unauthenticated' || pathname === '/login' || pathname === '/register') {

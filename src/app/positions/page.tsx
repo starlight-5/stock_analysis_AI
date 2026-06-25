@@ -27,8 +27,11 @@ function usePositions() {
   const [prices,    setPrices]    = useState<Record<string, number | null>>({})
 
   const load = useCallback(async () => {
-    const data = await fetch('/api/positions', { cache: 'no-store' }).then(r => r.json()).catch(() => [])
-    if (Array.isArray(data)) setPositions(data)
+    try {
+      const r    = await fetch('/api/positions', { cache: 'no-store' })
+      const data = await r.json()
+      if (Array.isArray(data)) setPositions(data)
+    } catch {}
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -37,10 +40,14 @@ function usePositions() {
     const active = positions.filter(p => p.status === 'active')
     if (!active.length) return
     const tickers = active.map(p => p.ticker).join(',')
-    fetch(`/api/prices?tickers=${tickers}`)
-      .then(r => r.json())
-      .then(setPrices)
-      .catch(() => {})
+    const doFetch = async () => {
+      try {
+        const r    = await fetch(`/api/prices?tickers=${tickers}`)
+        const data = await r.json()
+        setPrices(data)
+      } catch {}
+    }
+    doFetch()
   }, [positions])
 
   const close = useCallback(async (id: string) => {

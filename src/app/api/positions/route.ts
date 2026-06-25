@@ -19,7 +19,7 @@ const SIGNAL_LABEL: Record<string, string> = {
   strong_buy: '강력매수', buy: '매수', watch: '관망', sell: '매도', strong_sell: '강력매도',
 }
 
-function sendPositionAlert(pos: Position, type: 'new' | 'updated') {
+async function sendPositionAlert(pos: Position, type: 'new' | 'updated') {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL
   if (!webhookUrl) return
 
@@ -37,13 +37,16 @@ function sendPositionAlert(pos: Position, type: 'new' | 'updated') {
     .map((t, i) => `${i + 1}차 ${fmtPrice(pos.ticker, t.price)}`)
     .join(' · ')
 
-  fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: [header, `진입: ${entryLine}`, `목표: ${targetLine}`, `손절: ${fmtPrice(pos.ticker, pos.stopLoss)}`].join('\n') }),
-  })
-    .then(res => { if (!res.ok) console.error(`Discord 알림 실패: ${res.status}`) })
-    .catch(err => console.error('Discord 알림 네트워크 에러:', err))
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: [header, `진입: ${entryLine}`, `목표: ${targetLine}`, `손절: ${fmtPrice(pos.ticker, pos.stopLoss)}`].join('\n') }),
+    })
+    if (!res.ok) console.error(`Discord 알림 실패: ${res.status}`)
+  } catch (err) {
+    console.error('Discord 알림 네트워크 에러:', err)
+  }
 }
 
 function toPosition(row: DbPosition): Position {
@@ -104,7 +107,7 @@ export async function POST(req: NextRequest) {
   })
 
   const pos = toPosition(row)
-  sendPositionAlert(pos, 'new')
+  await sendPositionAlert(pos, 'new')
   return NextResponse.json(pos, { status: 201 })
 }
 
@@ -138,7 +141,7 @@ export async function PATCH(req: NextRequest) {
   })
 
   const pos = toPosition(row)
-  sendPositionAlert(pos, 'updated')
+  await sendPositionAlert(pos, 'updated')
   return NextResponse.json(pos)
 }
 

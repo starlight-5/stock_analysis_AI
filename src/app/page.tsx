@@ -81,11 +81,13 @@ function useMarketData(): MarketData | null {
     let isMounted = true
     const ctrl = new AbortController()
 
-    const doFetch = () =>
-      fetch('/api/market', { signal: ctrl.signal })
-        .then(r => r.json())
-        .then(d => { if (isMounted && !d.error) setMarket(d) })
-        .catch(() => {})
+    const doFetch = async () => {
+      try {
+        const r = await fetch('/api/market', { signal: ctrl.signal })
+        const d = await r.json()
+        if (isMounted && !d.error) setMarket(d)
+      } catch {}
+    }
 
     doFetch()
     const id = setInterval(doFetch, 5 * 60 * 1000)
@@ -149,9 +151,10 @@ function useWatchlist() {
 
   useEffect(() => {
     const ctrl = new AbortController()
-    fetch('/api/watchlist', { signal: ctrl.signal })
-      .then(r => r.json())
-      .then(data => {
+    const doFetch = async () => {
+      try {
+        const r    = await fetch('/api/watchlist', { signal: ctrl.signal })
+        const data = await r.json()
         if (ctrl.signal.aborted) return
         setWatchlist(
           Array.isArray(data) && data.length > 0
@@ -160,8 +163,9 @@ function useWatchlist() {
                 ...w, id: `default-${i}`, addedAt: new Date().toISOString(),
               }))
         )
-      })
-      .catch(() => {})
+      } catch {}
+    }
+    doFetch()
     return () => ctrl.abort()
   }, [])
 
@@ -200,10 +204,14 @@ function useWatchlistData(tickers: string[]) {
   useEffect(() => {
     if (!tickers.length) return
     const ctrl = new AbortController()
-    fetch(`/api/quotes?tickers=${key}`, { signal: ctrl.signal })
-      .then(r => r.json())
-      .then(data => { if (!ctrl.signal.aborted) setQuotes(data) })
-      .catch(() => {})
+    const doFetch = async () => {
+      try {
+        const r    = await fetch(`/api/quotes?tickers=${key}`, { signal: ctrl.signal })
+        const data = await r.json()
+        if (!ctrl.signal.aborted) setQuotes(data)
+      } catch {}
+    }
+    doFetch()
     return () => ctrl.abort()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
@@ -214,10 +222,14 @@ function useWatchlistData(tickers: string[]) {
 function useTrendingSectors() {
   const [data, setData] = useState<TrendingSectorsData | null>(null)
   useEffect(() => {
-    fetch('/api/trending-sectors')
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => {})
+    const doFetch = async () => {
+      try {
+        const r    = await fetch('/api/trending-sectors')
+        const data = await r.json()
+        setData(data)
+      } catch {}
+    }
+    doFetch()
   }, [])
   return data
 }

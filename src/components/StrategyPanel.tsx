@@ -136,8 +136,11 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
     setRegisterState('idle')
     try {
       // 기존 active 포지션 중복 확인
-      const all = await fetch('/api/positions').then(r => r.json()).catch(() => []) as
-        Array<{ ticker: string; id: string; registeredAt: string; status: string }>
+      let all: Array<{ ticker: string; id: string; registeredAt: string; status: string }> = []
+      try {
+        const r = await fetch('/api/positions')
+        all     = await r.json()
+      } catch {}
       const existing = all.find(p => p.ticker === ticker.toUpperCase() && p.status === 'active')
 
       if (existing) {
