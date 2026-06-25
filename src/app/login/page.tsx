@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 const inputStyle: React.CSSProperties = {
@@ -17,14 +17,24 @@ const inputStyle: React.CSSProperties = {
 }
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [denied, setDenied] = useState(false)   // 허용되지 않은 사용자
-  const [requested, setRequested] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [reqLoading, setReqLoading] = useState(false)
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
+  const [error,        setError]        = useState('')
+  const [denied,       setDenied]       = useState(false)
+  const [googleDenied, setGoogleDenied] = useState(false)
+  const [requestEmail, setRequestEmail] = useState('')
+  const [requested,    setRequested]    = useState(false)
+  const [loading,      setLoading]      = useState(false)
+  const [reqLoading,   setReqLoading]   = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('error') === 'AccessDenied') {
+      setDenied(true)
+      setGoogleDenied(true)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,11 +62,13 @@ export default function LoginPage() {
   }
 
   const handleRequestAccess = async () => {
+    const targetEmail = googleDenied ? requestEmail : email
+    if (!targetEmail) return
     setReqLoading(true)
     await fetch('/api/auth/request-access', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: targetEmail }),
     })
     setRequested(true)
     setReqLoading(false)
@@ -172,6 +184,69 @@ export default function LoginPage() {
           <span style={{ color: '#404880', fontSize: 12 }}>또는</span>
           <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
         </div>
+
+        {/* 구글 로그인 — 이미 이메일/비번 계정 존재 */}
+        {searchParams.get('error') === 'OAuthAccountNotLinked' && (
+          <div style={{
+            background: 'rgba(255,160,50,0.08)',
+            border: '1px solid rgba(255,160,50,0.3)',
+            borderRadius: 8, padding: '12px 14px',
+          }}>
+            <p style={{ margin: 0, color: '#FFA032', fontSize: 13 }}>
+              이미 이메일/비밀번호로 가입된 계정입니다. 아래 이메일 로그인을 이용해주세요.
+            </p>
+          </div>
+        )}
+
+        {/* 구글 로그인 거부 시 */}
+        {googleDenied && !requested && (
+          <div style={{
+            background: 'rgba(255,90,90,0.08)',
+            border: '1px solid rgba(255,90,90,0.3)',
+            borderRadius: 8, padding: '12px 14px',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>
+              허용되지 않은 Google 계정입니다.
+            </p>
+            <input
+              type="email"
+              value={requestEmail}
+              onChange={e => setRequestEmail(e.target.value)}
+              placeholder="Google 이메일 입력"
+              style={{ ...inputStyle, fontSize: 13, padding: '8px 12px' }}
+            />
+            <button
+              type="button"
+              onClick={handleRequestAccess}
+              disabled={reqLoading || !requestEmail}
+              style={{
+                padding: '8px 12px',
+                background: (reqLoading || !requestEmail) ? '#2D3460' : 'rgba(255,90,90,0.15)',
+                color: '#FF8585',
+                border: '1px solid rgba(255,90,90,0.4)',
+                borderRadius: 6, fontSize: 12, fontWeight: 600,
+                cursor: (reqLoading || !requestEmail) ? 'not-allowed' : 'pointer',
+                width: '100%',
+              }}
+            >
+              {reqLoading ? '요청 전송 중...' : '관리자에게 접근 요청 보내기'}
+            </button>
+          </div>
+        )}
+
+        {/* 구글 요청 완료 */}
+        {googleDenied && requested && (
+          <div style={{
+            background: 'rgba(59,110,255,0.08)',
+            border: '1px solid rgba(59,110,255,0.3)',
+            borderRadius: 8, padding: '12px 14px',
+          }}>
+            <p style={{ margin: 0, color: '#5B8BFF', fontSize: 13 }}>
+              ✓ 접근 요청이 전송되었습니다. 관리자 승인 후 이용 가능합니다.
+            </p>
+          </div>
+        )}
 
         <button onClick={handleGoogle} style={{
           width: '100%', padding: '11px',
