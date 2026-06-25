@@ -39,6 +39,11 @@ export const authOptions: NextAuthOptions = {
     error:  '/login',
   },
   callbacks: {
+    async signIn({ user }) {
+      const allowed = process.env.ALLOWED_EMAILS?.split(',').map(e => e.trim())
+      if (!allowed || allowed.length === 0) return true
+      return !!(user.email && allowed.includes(user.email))
+    },
     async jwt({ token, user }) {
       if (user) token.id = user.id
       return token
