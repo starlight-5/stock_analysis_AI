@@ -112,11 +112,12 @@ interface Props {
   isLoading: boolean
   isFallback: boolean
   fromCache: boolean
+  fromDB?: boolean
   onAnalyze: () => void
   onForceRefresh: () => void
 }
 
-export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, onAnalyze, onForceRefresh }: Props) {
+export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, fromDB, onAnalyze, onForceRefresh }: Props) {
   const [showRaw,         setShowRaw]         = useState(false)
   const [registering,     setRegistering]     = useState(false)
   const [registerState,   setRegisterState]   = useState<'idle' | 'ok' | 'ok_updated' | 'err'>('idle')
@@ -245,7 +246,16 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
               <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
                 {new Date(strategy.generatedAt).toLocaleString('ko-KR')}
               </span>
-              {fromCache && (
+              {fromDB && (
+                <span style={{
+                  fontSize: 11, padding: '1px 7px', borderRadius: 10,
+                  background: '#E8F5E9', color: '#2E7D32',
+                  border: '0.5px solid #81C784',
+                }}>
+                  포지션 등록 전략
+                </span>
+              )}
+              {fromCache && !fromDB && (
                 <span style={{
                   fontSize: 11, padding: '1px 7px', borderRadius: 10,
                   background: '#EEF0F8', color: '#4B5DA0',
@@ -254,7 +264,7 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
                   캐시됨
                 </span>
               )}
-              {fromCache && (
+              {(fromCache || fromDB) && (
                 <button
                   onClick={onForceRefresh}
                   disabled={isLoading}

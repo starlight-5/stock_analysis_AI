@@ -13,6 +13,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
 import type { StrategyResult, IndicatorSnapshot } from '@/types/stock'
@@ -555,8 +558,42 @@ export async function POST(req: NextRequest) {
     ticker = ticker.toUpperCase()
     const forceRefresh = !!body.forceRefresh
 
-    // 캐시 히트 확인 (10분 TTL) — forceRefresh 시 건너뜀
     if (!forceRefresh) {
+      // 1순위: DB — 활성 포지션에 저장된 전략
+      const session = await getServerSession(authOptions)
+      const userId = (session?.user as any)?.id
+      if (userId) {
+        const position = await prisma.position.findFirst({
+          where: { userId, ticker, status: 'active' },
+        })
+        if (position) {
+          const result = await fetchStockData(ticker)
+          const currentSnap = getSnapshot(result.bars, calcIndicators(result.bars))
+          const strategy: StrategyResult = {
+            ticker: position.ticker,
+            generatedAt: position.registeredAt.toISOString(),
+            summary: position.summary,
+            signal: position.signal as StrategyResult['signal'],
+            buyStrategy: {
+              type: position.entryType as 'lump' | 'split',
+              entries: position.entries as StrategyResult['buyStrategy']['entries'],
+              stopLoss: position.stopLoss,
+              stopLossReason: position.stopLossReason,
+            },
+            sellStrategy: { targets: position.targets as StrategyResult['sellStrategy']['targets'] },
+            risks: position.risks as string[],
+            holding: (position.holding as StrategyResult['holding']) ?? {
+              minWeeks: 2, targetWeeks: 6, maxWeeks: 12,
+              stopCondition: 'MA20 종가 이탈 시 즉시 손절',
+              reviewCondition: '목표 기간 경과 후 재검토',
+            },
+            rawText: '',
+          }
+          return NextResponse.json({ strategy, snapshot: currentSnap, fromDB: true })
+        }
+      }
+
+      // 2순위: 서버 캐시 (10분 TTL)
       const cached = getCachedStrategy(ticker)
       if (cached) return NextResponse.json({ ...cached, fromCache: true })
     }

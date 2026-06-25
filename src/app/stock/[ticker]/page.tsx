@@ -57,6 +57,7 @@ export default function StockDetailPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   const [isFallback, setIsFallback]   = useState(false)
   const [fromCache, setFromCache]     = useState(false)
+  const [fromDB, setFromDB]           = useState(false)
 
   useEffect(() => {
     if (!ticker) return
@@ -91,6 +92,7 @@ export default function StockDetailPage() {
       setSnapshot(data.snapshot)
       setIsFallback(!!data.fallbackMode)
       setFromCache(!!data.fromCache)
+      setFromDB(!!data.fromDB)
     } catch (e: any) {
       setAnalyzeError(`분석에 실패했습니다: ${e.message}`)
     } finally {
@@ -220,6 +222,7 @@ export default function StockDetailPage() {
             isLoading={analyzing}
             isFallback={isFallback}
             fromCache={fromCache}
+            fromDB={fromDB}
             onAnalyze={handleAnalyze}
             onForceRefresh={handleForceRefresh}
           />
