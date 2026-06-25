@@ -14,19 +14,18 @@ export default function Header() {
   return (
     <header style={{
       position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
+      top: 0, left: 0, right: 0,
       height: 48,
-      background: '#111',
-      borderBottom: '1px solid #222',
+      background: '#1C2038',
+      borderBottom: '1px solid #2D3460',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '0 16px',
       zIndex: 100,
+      boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
     }}>
-      <span style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
+      <span style={{ fontSize: 15, fontWeight: 700, color: '#ECEEF8', letterSpacing: '-0.3px' }}>
         주식 분석
       </span>
 
@@ -37,32 +36,23 @@ export default function Header() {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            background: 'none',
-            border: '1px solid #333',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid #404880',
             borderRadius: 20,
             padding: '4px 10px 4px 6px',
             cursor: 'pointer',
-            color: '#fff',
+            color: '#ECEEF8',
           }}
         >
           {session.user.image ? (
-            <img
-              src={session.user.image}
-              alt=""
-              style={{ width: 24, height: 24, borderRadius: '50%' }}
-            />
+            <img src={session.user.image} alt=""
+              style={{ width: 24, height: 24, borderRadius: '50%' }} />
           ) : (
             <div style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              background: '#2563eb',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#fff',
+              width: 24, height: 24, borderRadius: '50%',
+              background: '#3B6EFF',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color: '#fff',
             }}>
               {initial}
             </div>
@@ -74,26 +64,23 @@ export default function Header() {
 
         {open && (
           <>
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 110 }}
-              onClick={() => setOpen(false)}
-            />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 110 }} onClick={() => setOpen(false)} />
             <div style={{
               position: 'absolute',
-              top: 40,
-              right: 0,
-              background: '#1a1a1a',
-              border: '1px solid #333',
-              borderRadius: 8,
-              minWidth: 160,
+              top: 42, right: 0,
+              background: '#1C2038',
+              border: '1px solid #404880',
+              borderRadius: 10,
+              minWidth: 180,
               zIndex: 120,
               overflow: 'hidden',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #222' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 2 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2D3460' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#ECEEF8', marginBottom: 2 }}>
                   {session.user.name ?? '-'}
                 </div>
-                <div style={{ fontSize: 11, color: '#666' }}>
+                <div style={{ fontSize: 11, color: '#7A82A8' }}>
                   {session.user.email}
                 </div>
               </div>
@@ -104,7 +91,7 @@ export default function Header() {
                   padding: '10px 16px',
                   background: 'none',
                   border: 'none',
-                  color: '#f56565',
+                  color: '#FF8585',
                   fontSize: 13,
                   textAlign: 'left',
                   cursor: 'pointer',
