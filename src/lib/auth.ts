@@ -69,6 +69,12 @@ export const authOptions: NextAuthOptions = {
         ?? process.env.ALLOWED_EMAILS?.split(',')[0]?.trim()
       if (adminEmail && user.email === adminEmail) return true
 
+      // 관리자에 의해 차단된 이메일 확인
+      const ban = await prisma.bannedEmail.findFirst({
+        where: { email: user.email, bannedUntil: { gt: new Date() } },
+      })
+      if (ban) return false
+
       // DB에서 승인된 요청 확인
       const request = await prisma.accessRequest.findFirst({
         where: { email: user.email, status: 'approved' },

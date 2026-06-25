@@ -12,6 +12,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '비밀번호는 8자 이상이어야 합니다.' }, { status: 400 })
   }
 
+  const ban = await prisma.bannedEmail.findFirst({
+    where: { email, bannedUntil: { gt: new Date() } },
+  })
+  if (ban) {
+    return NextResponse.json({ error: '이 이메일은 일시적으로 가입이 제한되어 있습니다.' }, { status: 403 })
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
     return NextResponse.json({ error: '이미 사용 중인 이메일입니다.' }, { status: 409 })

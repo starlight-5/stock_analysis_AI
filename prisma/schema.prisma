@@ -93,6 +93,14 @@ model AccessRequest {
   reviewedAt  DateTime?
 }
 
+// ─── 차단 이메일 ──────────────────────────────────────────────────
+
+model BannedEmail {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  bannedUntil DateTime
+}
+
 // ─── 관심종목 ─────────────────────────────────────────────────────
 
 model WatchlistItem {

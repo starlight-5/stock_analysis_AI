@@ -35,7 +35,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#131626', padding: '40px 24px', paddingBottom: 100 }}>
+    <div style={{ minHeight: '100vh', background: '#131626', padding: '68px 24px 100px' }}>
       <div style={{ maxWidth: 480, margin: '0 auto' }}>
         <div style={{ marginBottom: 32 }}>
           <a href="/" style={{ color: '#7A82A8', fontSize: 13, textDecoration: 'none' }}>← 홈</a>
