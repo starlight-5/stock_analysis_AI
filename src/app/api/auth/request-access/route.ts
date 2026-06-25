@@ -4,7 +4,7 @@ export async function POST(req: NextRequest) {
   const { email } = await req.json()
   if (!email) return NextResponse.json({ error: '이메일 필요' }, { status: 400 })
 
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL
+  const webhookUrl = process.env.DISCORD_ACCESS_REQUEST_WEBHOOK_URL
   if (webhookUrl) {
     fetch(webhookUrl, {
       method: 'POST',
