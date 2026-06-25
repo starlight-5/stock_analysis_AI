@@ -18,12 +18,15 @@ const SIGNAL_LABEL: Record<string, string> = {
   strong_buy: '강력매수', buy: '매수', watch: '관망', sell: '매도', strong_sell: '강력매도',
 }
 
-function sendNewPositionAlert(pos: Position) {
+function sendPositionAlert(pos: Position, type: 'new' | 'updated') {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL
   if (!webhookUrl) return
 
   const em  = SIGNAL_EMOJI[pos.signal] ?? '⚪'
   const sig = SIGNAL_LABEL[pos.signal] ?? pos.signal
+  const header = type === 'new'
+    ? `${em} **새 포지션 등록** | ${pos.ticker} · ${pos.name}  \`${sig}\``
+    : `🔄 **포지션 최신화** | ${pos.ticker} · ${pos.name}  \`${sig}\``
 
   const entryLine = pos.entryType === 'lump'
     ? `일괄 ${fmtPrice(pos.ticker, pos.entries[0]?.price ?? 0)}`
@@ -34,7 +37,7 @@ function sendNewPositionAlert(pos: Position) {
     .join(' · ')
 
   const lines = [
-    `${em} **새 포지션 등록** | ${pos.ticker} · ${pos.name}  \`${sig}\``,
+    header,
     `진입: ${entryLine}`,
     `목표: ${targetLine}`,
     `손절: ${fmtPrice(pos.ticker, pos.stopLoss)}`,
@@ -44,7 +47,9 @@ function sendNewPositionAlert(pos: Position) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: lines.join('\n') }),
-  }).catch(() => {})
+  })
+    .then(res => { if (!res.ok) console.error(`Discord 알림 실패: ${res.status}`) })
+    .catch(err => console.error('Discord 알림 네트워크 에러:', err))
 }
 
 async function readDB(): Promise<Position[]> {
@@ -84,7 +89,7 @@ export async function POST(req: NextRequest) {
 
   positions.push(newPos)
   await writeDB(positions)
-  sendNewPositionAlert(newPos)
+  sendPositionAlert(newPos, 'new')
   return NextResponse.json(newPos, { status: 201 })
 }
 
@@ -112,6 +117,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   await writeDB(positions)
+  sendPositionAlert(positions[idx], 'updated')
   return NextResponse.json(positions[idx])
 }
 
