@@ -37,11 +37,11 @@ export default function BottomNav() {
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
       height: 64,
       background: '#252B45',
-      borderTop: '2px solid #5B6AAA',
+      borderTop: '1px solid #404880',
       display: 'flex',
       boxShadow: '0 -6px 24px rgba(0,0,0,0.6)',
     }}>
-      {tabs.map(tab => {
+      {tabs.map((tab, idx) => {
         const active = pathname === tab.path
         return (
           <button
@@ -52,9 +52,14 @@ export default function BottomNav() {
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               gap: 3, position: 'relative',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: active ? '#5B8BFF' : '#7A82A8',
-              transition: 'color 0.15s',
+              background: active ? 'rgba(91,139,255,0.08)' : 'none',
+              borderTop: active ? '2px solid #5B8BFF' : '2px solid transparent',
+              borderLeft: idx > 0 ? '1px solid #404880' : 'none',
+              borderRight: 'none',
+              borderBottom: 'none',
+              cursor: 'pointer',
+              color: active ? '#5B8BFF' : '#9AA3C8',
+              transition: 'all 0.15s',
             }}
           >
             <span style={{ fontSize: 22, lineHeight: 1 }}>{tab.icon}</span>
@@ -71,14 +76,6 @@ export default function BottomNav() {
               </span>
             )}
 
-            {active && (
-              <div style={{
-                position: 'absolute', bottom: 0,
-                left: '50%', transform: 'translateX(-50%)',
-                width: 28, height: 3, borderRadius: 2,
-                background: '#5B8BFF',
-              }} />
-            )}
           </button>
         )
       })}
