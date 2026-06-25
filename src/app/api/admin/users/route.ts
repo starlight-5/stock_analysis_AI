@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-function checkAdmin(session: Awaited<ReturnType<typeof getServerSession>>) {
-  return (session?.user as any)?.isAdmin === true
+function checkAdmin(session: any) {
+  return session?.user?.isAdmin === true
 }
 
 export async function GET() {
