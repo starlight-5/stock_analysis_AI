@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import type { Position as DbPosition } from '@prisma/client'
 import type { Position } from '@/types/stock'
 
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
@@ -35,39 +36,32 @@ function sendPositionAlert(pos: Position, type: 'new' | 'updated') {
     .map((t, i) => `${i + 1}차 ${fmtPrice(pos.ticker, t.price)}`)
     .join(' · ')
 
-  const lines = [
-    header,
-    `진입: ${entryLine}`,
-    `목표: ${targetLine}`,
-    `손절: ${fmtPrice(pos.ticker, pos.stopLoss)}`,
-  ]
-
   fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: lines.join('\n') }),
+    body: JSON.stringify({ content: [header, `진입: ${entryLine}`, `목표: ${targetLine}`, `손절: ${fmtPrice(pos.ticker, pos.stopLoss)}`].join('\n') }),
   })
     .then(res => { if (!res.ok) console.error(`Discord 알림 실패: ${res.status}`) })
     .catch(err => console.error('Discord 알림 네트워크 에러:', err))
 }
 
-function toPosition(row: Record<string, unknown>): Position {
+function toPosition(row: DbPosition): Position {
   return {
-    id:             row.id as string,
-    ticker:         row.ticker as string,
-    name:           row.name as string,
-    registeredAt:   (row.registeredAt as Date).toISOString(),
+    id:             row.id,
+    ticker:         row.ticker,
+    name:           row.name,
+    registeredAt:   row.registeredAt.toISOString(),
     signal:         row.signal as Position['signal'],
-    summary:        row.summary as string,
+    summary:        row.summary,
     entryType:      row.entryType as 'lump' | 'split',
     entries:        row.entries as Position['entries'],
-    stopLoss:       row.stopLoss as number,
-    stopLossReason: row.stopLossReason as string,
+    stopLoss:       row.stopLoss,
+    stopLossReason: row.stopLossReason,
     targets:        row.targets as Position['targets'],
     risks:          row.risks as Position['risks'],
-    holding:        row.holding as Position['holding'],
+    holding:        row.holding as unknown as Position['holding'] ?? undefined,
     status:         row.status as 'active' | 'closed',
-    closedAt:       row.closedAt ? (row.closedAt as Date).toISOString() : undefined,
+    closedAt:       row.closedAt?.toISOString(),
   }
 }
 
@@ -80,7 +74,7 @@ export async function GET() {
     orderBy: { registeredAt: 'desc' },
   })
 
-  return NextResponse.json(rows.map((r: unknown) => toPosition(r as Record<string, unknown>)))
+  return NextResponse.json(rows.map(toPosition))
 }
 
 export async function POST(req: NextRequest) {
@@ -108,7 +102,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  const pos = toPosition(row as unknown as Record<string, unknown>)
+  const pos = toPosition(row)
   sendPositionAlert(pos, 'new')
   return NextResponse.json(pos, { status: 201 })
 }
@@ -142,7 +136,7 @@ export async function PATCH(req: NextRequest) {
     },
   })
 
-  const pos = toPosition(row as unknown as Record<string, unknown>)
+  const pos = toPosition(row)
   sendPositionAlert(pos, 'updated')
   return NextResponse.json(pos)
 }
