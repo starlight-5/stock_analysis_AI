@@ -27,7 +27,7 @@ function usePositions() {
   const [prices,    setPrices]    = useState<Record<string, number | null>>({})
 
   const load = useCallback(async () => {
-    const data = await fetch('/api/positions').then(r => r.json()).catch(() => [])
+    const data = await fetch('/api/positions', { cache: 'no-store' }).then(r => r.json()).catch(() => [])
     if (Array.isArray(data)) setPositions(data)
   }, [])
 
@@ -63,6 +63,15 @@ const PositionCard = memo(function PositionCard({
   const meta     = SIGNAL_META[pos.signal] ?? SIGNAL_META.watch
   const avgEntry = pos.entries.reduce((s, e) => s + e.price * (e.ratio / 100), 0)
   const retPct   = cur != null && avgEntry > 0 ? diffPct(avgEntry, cur) : null
+
+  const elapsed  = Math.max(0, Math.floor((Date.now() - new Date(pos.registeredAt).getTime()) / 86400000))
+  const elapsedW = elapsed / 7
+  const barPct   = pos.holding ? Math.min(100, (elapsedW / pos.holding.maxWeeks) * 100) : 0
+  const [barWidth, setBarWidth] = useState(0)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setBarWidth(barPct))
+    return () => cancelAnimationFrame(id)
+  }, [barPct])
 
   const Row = ({ label, price, badge, right, rightColor }: {
     label: string; price: string; badge?: string
@@ -214,8 +223,6 @@ const PositionCard = memo(function PositionCard({
 
       {/* 보유 기간 가이드 */}
       {pos.holding && (() => {
-        const elapsed   = Math.floor((Date.now() - new Date(pos.registeredAt).getTime()) / 86400000)
-        const elapsedW  = elapsed / 7
         const { minWeeks, targetWeeks, maxWeeks } = pos.holding
 
         const status =
@@ -235,7 +242,6 @@ const PositionCard = memo(function PositionCard({
           review: '#F5A623',
           over:   '#FF5A5A',
         }
-        const barPct = Math.min(100, (elapsedW / maxWeeks) * 100)
         const barColor = statusColor[status]
 
         return (
@@ -257,7 +263,7 @@ const PositionCard = memo(function PositionCard({
 
             {/* 진행 바 */}
             <div style={{ position: 'relative', height: 4, borderRadius: 2, background: 'var(--color-background-secondary)', marginBottom: 6 }}>
-              <div style={{ height: '100%', borderRadius: 2, background: barColor, width: `${barPct}%`, transition: 'width .4s' }} />
+              <div style={{ height: '100%', borderRadius: 2, background: barColor, width: `${barWidth}%`, transition: 'width 0.6s ease' }} />
               {/* 마커: minWeeks */}
               <div style={{ position: 'absolute', top: -2, left: `${(minWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: '#404880' }} />
               {/* 마커: targetWeeks */}
