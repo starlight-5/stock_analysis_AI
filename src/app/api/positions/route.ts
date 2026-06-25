@@ -80,7 +80,7 @@ export async function GET() {
     orderBy: { registeredAt: 'desc' },
   })
 
-  return NextResponse.json(rows.map(r => toPosition(r as unknown as Record<string, unknown>)))
+  return NextResponse.json(rows.map((r: unknown) => toPosition(r as Record<string, unknown>)))
 }
 
 export async function POST(req: NextRequest) {
