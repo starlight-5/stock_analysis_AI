@@ -7,7 +7,8 @@ import { useEffect, useState } from 'react'
 export default function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
-  const { status } = useSession()
+  const { data: session, status } = useSession()
+  const isAdmin = (session?.user as any)?.isAdmin
   const [activeCount, setActiveCount] = useState(0)
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function BottomNav() {
   const tabs = [
     { path: '/',          label: '홈',    icon: '⌂' },
     { path: '/positions', label: '포지션', icon: '📌', badge: activeCount || undefined },
+    ...(isAdmin ? [{ path: '/admin', label: '관리', icon: '⚙' }] : []),
   ]
 
   return (

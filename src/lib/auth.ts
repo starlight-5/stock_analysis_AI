@@ -76,11 +76,19 @@ export const authOptions: NextAuthOptions = {
       return !!request
     },
     async jwt({ token, user }) {
-      if (user) token.id = user.id
+      if (user) {
+        token.id = user.id
+        const adminEmail = process.env.ADMIN_EMAIL
+          ?? process.env.ALLOWED_EMAILS?.split(',')[0]?.trim()
+        token.isAdmin = !!user.email && user.email === adminEmail
+      }
       return token
     },
     async session({ session, token }) {
-      if (session.user) (session.user as { id?: string }).id = token.id as string
+      if (session.user) {
+        (session.user as any).id      = token.id
+        ;(session.user as any).isAdmin = token.isAdmin
+      }
       return session
     },
   },
