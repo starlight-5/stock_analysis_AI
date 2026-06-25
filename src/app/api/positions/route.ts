@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import type { Position as DbPosition } from '@prisma/client'
 import type { Position } from '@/types/stock'
+
+type DbPosition = NonNullable<Awaited<ReturnType<typeof prisma.position.findFirst>>>
 
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
 const fmtPrice = (ticker: string, p: number) =>
