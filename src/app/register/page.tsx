@@ -4,6 +4,18 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 14px',
+  background: '#131626',
+  border: '1px solid #2D3460',
+  borderRadius: 8,
+  color: '#ECEEF8',
+  fontSize: 14,
+  boxSizing: 'border-box',
+  outline: 'none',
+}
+
 export default function RegisterPage() {
   const router = useRouter()
   const [name, setName] = useState('')
@@ -16,16 +28,8 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    if (password !== confirm) {
-      setError('비밀번호가 일치하지 않습니다.')
-      return
-    }
-    if (password.length < 8) {
-      setError('비밀번호는 8자 이상이어야 합니다.')
-      return
-    }
-
+    if (password !== confirm) { setError('비밀번호가 일치하지 않습니다.'); return }
+    if (password.length < 8)  { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     setLoading(true)
 
     const res = await fetch('/api/auth/register', {
@@ -41,23 +45,12 @@ export default function RegisterPage() {
       return
     }
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    })
-
-    if (result?.error) {
-      router.push('/login')
-    } else {
-      router.push('/')
-      router.refresh()
-    }
+    const result = await signIn('credentials', { email, password, redirect: false })
+    if (result?.error) router.push('/login')
+    else { router.push('/'); router.refresh() }
   }
 
-  const handleGoogle = () => {
-    signIn('google', { callbackUrl: '/' })
-  }
+  const handleGoogle = () => signIn('google', { callbackUrl: '/' })
 
   return (
     <div style={{
@@ -65,167 +58,74 @@ export default function RegisterPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#0f0f0f',
+      background: '#131626',
       padding: '20px',
     }}>
       <div style={{
         width: '100%',
         maxWidth: 400,
-        background: '#1a1a1a',
-        border: '1px solid #2a2a2a',
+        background: '#1C2038',
+        border: '1px solid #2D3460',
         borderRadius: 12,
         padding: '40px 32px',
       }}>
-        <h1 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 700, color: '#fff' }}>
+        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: '#ECEEF8' }}>
           회원가입
         </h1>
-        <p style={{ margin: '0 0 32px', color: '#888', fontSize: 14 }}>
+        <p style={{ margin: '0 0 28px', color: '#7A82A8', fontSize: 13 }}>
           계정을 만들어 포지션과 관심종목을 관리하세요.
         </p>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, color: '#aaa' }}>
-              이름 (선택)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="홍길동"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: '#111',
-                border: '1px solid #333',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 14,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
-            />
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>이름 (선택)</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="홍길동" style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>이메일</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              required placeholder="example@email.com" style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>비밀번호</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              required placeholder="8자 이상" style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>비밀번호 확인</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              required placeholder="비밀번호 재입력" style={inputStyle} />
           </div>
 
-          <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, color: '#aaa' }}>
-              이메일
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              placeholder="example@email.com"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: '#111',
-                border: '1px solid #333',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 14,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
-            />
-          </div>
+          {error && <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>{error}</p>}
 
-          <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, color: '#aaa' }}>
-              비밀번호
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              placeholder="8자 이상"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: '#111',
-                border: '1px solid #333',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 14,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, color: '#aaa' }}>
-              비밀번호 확인
-            </label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              required
-              placeholder="비밀번호 재입력"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: '#111',
-                border: '1px solid #333',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 14,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          {error && (
-            <p style={{ margin: 0, color: '#f56565', fontSize: 13 }}>{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: '12px',
-              background: loading ? '#444' : '#2563eb',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: 4,
-            }}
-          >
+          <button type="submit" disabled={loading} style={{
+            padding: '11px',
+            background: loading ? '#2D3460' : '#3B6EFF',
+            color: '#fff',
+            border: 'none', borderRadius: 8,
+            fontSize: 14, fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            marginTop: 4,
+          }}>
             {loading ? '처리 중...' : '회원가입'}
           </button>
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#2a2a2a' }} />
-          <span style={{ color: '#555', fontSize: 12 }}>또는</span>
-          <div style={{ flex: 1, height: 1, background: '#2a2a2a' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
+          <span style={{ color: '#404880', fontSize: 12 }}>또는</span>
+          <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
         </div>
 
-        <button
-          onClick={handleGoogle}
-          style={{
-            width: '100%',
-            padding: '12px',
-            background: '#fff',
-            color: '#111',
-            border: 'none',
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-          }}
-        >
+        <button onClick={handleGoogle} style={{
+          width: '100%', padding: '11px',
+          background: '#fff', color: '#111',
+          border: 'none', borderRadius: 8,
+          fontSize: 14, fontWeight: 600, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
             <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.07 0-3.83-1.4-4.46-3.29H1.86v2.07A8 8 0 008.98 17z"/>
@@ -235,11 +135,9 @@ export default function RegisterPage() {
           Google로 계속하기
         </button>
 
-        <p style={{ margin: '24px 0 0', textAlign: 'center', color: '#666', fontSize: 13 }}>
+        <p style={{ margin: '20px 0 0', textAlign: 'center', color: '#7A82A8', fontSize: 13 }}>
           이미 계정이 있으신가요?{' '}
-          <Link href="/login" style={{ color: '#2563eb', textDecoration: 'none' }}>
-            로그인
-          </Link>
+          <Link href="/login" style={{ color: '#5B8BFF', textDecoration: 'none' }}>로그인</Link>
         </p>
       </div>
     </div>

@@ -22,6 +22,11 @@ export default function BottomNav() {
       .catch(() => {})
   }, [pathname, status])
 
+  // 로그인/회원가입 페이지에는 표시 안 함
+  if (status === 'unauthenticated' || pathname === '/login' || pathname === '/register') {
+    return null
+  }
+
   const tabs = [
     { path: '/',          label: '홈',      icon: '⌂'  },
     { path: '/positions', label: '포지션',  icon: '📌', badge: activeCount || undefined },
@@ -31,9 +36,10 @@ export default function BottomNav() {
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
       height: 60,
-      background: 'var(--color-background-primary)',
-      borderTop: '1px solid var(--color-border-tertiary)',
+      background: '#1C2038',
+      borderTop: '2px solid #2D3460',
       display: 'flex',
+      boxShadow: '0 -4px 16px rgba(0,0,0,0.4)',
     }}>
       {tabs.map(tab => {
         const active = pathname === tab.path
@@ -47,7 +53,7 @@ export default function BottomNav() {
               alignItems: 'center', justifyContent: 'center',
               gap: 3, position: 'relative',
               background: 'none', border: 'none', cursor: 'pointer',
-              color: active ? '#3B6EFF' : 'var(--color-text-secondary)',
+              color: active ? '#5B8BFF' : '#7A82A8',
               transition: 'color 0.15s',
             }}
           >
@@ -69,8 +75,8 @@ export default function BottomNav() {
               <div style={{
                 position: 'absolute', bottom: 0,
                 left: '50%', transform: 'translateX(-50%)',
-                width: 28, height: 2, borderRadius: 1,
-                background: '#3B6EFF',
+                width: 28, height: 3, borderRadius: 2,
+                background: '#5B8BFF',
               }} />
             )}
           </button>
