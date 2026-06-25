@@ -208,7 +208,14 @@ ${earningsSection}
       { "price": ${priceUnit}, "ratio": 비중(0-100), "reason": "기술적 근거 (MA선·BB밴드·매물대 등 구체적 레벨 명시)" }
     ]
   },
-  "risks": ["리스크 1 (가능하면 뉴스 근거 포함)", "리스크 2", "리스크 3"]
+  "risks": ["리스크 1 (가능하면 뉴스 근거 포함)", "리스크 2", "리스크 3"],
+  "holding": {
+    "minWeeks": 최소 관찰 기간(정수, 주 단위),
+    "targetWeeks": 권장 보유 기간(정수, 주 단위),
+    "maxWeeks": 최대 보유 기간(정수, 주 단위),
+    "stopCondition": "MA20(${fmtPrice(snap.ma20)}) 종가 이탈 시 즉시 손절 — 단기 추세선 붕괴",
+    "reviewCondition": "targetWeeks 경과 후 1차 목표 미달 시 전략 재수립 (시간 손절)"
+  }
 }
 
 ## 전략 작성 규칙
@@ -288,6 +295,7 @@ function parseStrategyResponse(
       },
       sellStrategy: { targets: [] },
       risks: ['응답 데이터 파싱 실패', '일시적인 API 응답 규격 오류'],
+      holding: { minWeeks: 2, targetWeeks: 6, maxWeeks: 12, stopCondition: 'MA20 이탈 시 손절', reviewCondition: '6주 경과 후 재검토' },
       rawText: raw,
     }
   }
@@ -311,6 +319,13 @@ function parseStrategyResponse(
         .sort((a: any, b: any) => a.price - b.price),
     },
     risks: parsed.risks ?? ['시장 변동성 리스크', '종목 개별 재무 위험', '추세 반전 우려'],
+    holding: {
+      minWeeks:        parsed.holding?.minWeeks        ?? 2,
+      targetWeeks:     parsed.holding?.targetWeeks     ?? 6,
+      maxWeeks:        parsed.holding?.maxWeeks        ?? 12,
+      stopCondition:   parsed.holding?.stopCondition   ?? 'MA20 종가 이탈 시 즉시 손절',
+      reviewCondition: parsed.holding?.reviewCondition ?? '목표 기간 경과 후 1차 목표 미달 시 전략 재수립',
+    },
     rawText: raw,
   }
 }
@@ -494,6 +509,15 @@ function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapshot): Str
     ]
   }
 
+  const holdingMap: Record<StrategyResult['signal'], { minWeeks: number; targetWeeks: number; maxWeeks: number }> = {
+    strong_buy:  { minWeeks: 2, targetWeeks: 8,  maxWeeks: 16 },
+    buy:         { minWeeks: 2, targetWeeks: 6,  maxWeeks: 12 },
+    watch:       { minWeeks: 1, targetWeeks: 4,  maxWeeks: 8  },
+    sell:        { minWeeks: 1, targetWeeks: 2,  maxWeeks: 4  },
+    strong_sell: { minWeeks: 1, targetWeeks: 2,  maxWeeks: 4  },
+  }
+  const h = holdingMap[signal]
+
   return {
     ticker,
     generatedAt: new Date().toISOString(),
@@ -502,6 +526,11 @@ function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapshot): Str
     buyStrategy: { type: 'split', entries, stopLoss, stopLossReason },
     sellStrategy: { targets },
     risks,
+    holding: {
+      ...h,
+      stopCondition:   `MA20(${ma20Str}) 종가 이탈 시 즉시 손절 — 단기 추세선 붕괴`,
+      reviewCondition: `${h.targetWeeks}주 경과 후 1차 목표 미달 시 전략 재수립 (시간 손절)`,
+    },
     rawText: `[폴백 모드 — 규칙 기반 엔진]
 점수: RSI ${rsiScore} + BB ${bbScore} + MACD ${macdScore} + MA크로스 ${crossScore} + 거래량 ${volScore} = 종합 ${totalScore}/7
 판정: ${signal.toUpperCase()}`,

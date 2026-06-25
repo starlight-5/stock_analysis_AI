@@ -52,6 +52,15 @@ export interface Fundamentals {
   debtRatio: number | null    // %
 }
 
+// ─── 보유 기간 가이드 ─────────────────────────────────────────────
+export interface HoldingGuide {
+  minWeeks: number        // 최소 관찰 기간 (주)
+  targetWeeks: number     // 권장 보유 기간 (주)
+  maxWeeks: number        // 최대 보유 기간 (주)
+  stopCondition: string   // 손절 트리거 조건
+  reviewCondition: string // 전략 재검토 트리거 조건
+}
+
 // ─── Claude 전략 응답 ─────────────────────────────────────────────
 export interface StrategyEntry {
   price: number
@@ -74,6 +83,7 @@ export interface StrategyResult {
     targets: { price: number; ratio: number; reason: string }[]
   }
   risks: string[]
+  holding: HoldingGuide
   rawText: string   // Claude 원문 (디버깅용)
 }
 
@@ -119,6 +129,7 @@ export interface Position {
   stopLossReason: string
   targets: { price: number; ratio: number; reason: string }[]
   risks: string[]
+  holding?: HoldingGuide
   status: 'active' | 'closed'
   closedAt?: string
 }

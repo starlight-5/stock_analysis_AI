@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
-import path from 'path'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import type { Position } from '@/types/stock'
-
-const DB_PATH = path.join(process.cwd(), 'data', 'positions.json')
 
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
 const fmtPrice = (ticker: string, p: number) =>
@@ -52,84 +51,118 @@ function sendPositionAlert(pos: Position, type: 'new' | 'updated') {
     .catch(err => console.error('Discord 알림 네트워크 에러:', err))
 }
 
-async function readDB(): Promise<Position[]> {
-  try { return JSON.parse(await fs.readFile(DB_PATH, 'utf-8')) } catch { return [] }
-}
-async function writeDB(items: Position[]) {
-  await fs.mkdir(path.dirname(DB_PATH), { recursive: true })
-  await fs.writeFile(DB_PATH, JSON.stringify(items, null, 2))
+function toPosition(row: Record<string, unknown>): Position {
+  return {
+    id:             row.id as string,
+    ticker:         row.ticker as string,
+    name:           row.name as string,
+    registeredAt:   (row.registeredAt as Date).toISOString(),
+    signal:         row.signal as Position['signal'],
+    summary:        row.summary as string,
+    entryType:      row.entryType as string,
+    entries:        row.entries as Position['entries'],
+    stopLoss:       row.stopLoss as number,
+    stopLossReason: row.stopLossReason as string,
+    targets:        row.targets as Position['targets'],
+    risks:          row.risks as Position['risks'],
+    holding:        row.holding as Position['holding'],
+    status:         row.status as 'active' | 'closed',
+    closedAt:       row.closedAt ? (row.closedAt as Date).toISOString() : undefined,
+  }
 }
 
 export async function GET() {
-  return NextResponse.json(await readDB())
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
+
+  const rows = await prisma.position.findMany({
+    where: { userId: session.user.id },
+    orderBy: { registeredAt: 'desc' },
+  })
+
+  return NextResponse.json(rows.map(r => toPosition(r as unknown as Record<string, unknown>)))
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
+
   const body = await req.json()
   const { ticker, name, strategy } = body
   if (!ticker || !strategy) return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 })
 
-  const positions = await readDB()
+  const row = await prisma.position.create({
+    data: {
+      userId:         session.user.id,
+      ticker:         ticker.toUpperCase(),
+      name:           name ?? ticker.toUpperCase(),
+      signal:         strategy.signal,
+      summary:        strategy.summary,
+      entryType:      strategy.buyStrategy.type,
+      entries:        strategy.buyStrategy.entries,
+      stopLoss:       strategy.buyStrategy.stopLoss,
+      stopLossReason: strategy.buyStrategy.stopLossReason,
+      targets:        strategy.sellStrategy.targets,
+      risks:          strategy.risks,
+      holding:        strategy.holding ?? null,
+    },
+  })
 
-  const newPos: Position = {
-    id: `${Date.now()}`,
-    ticker: ticker.toUpperCase(),
-    name: name ?? ticker.toUpperCase(),
-    registeredAt: new Date().toISOString(),
-    signal:       strategy.signal,
-    summary:      strategy.summary,
-    entryType:    strategy.buyStrategy.type,
-    entries:      strategy.buyStrategy.entries,
-    stopLoss:     strategy.buyStrategy.stopLoss,
-    stopLossReason: strategy.buyStrategy.stopLossReason,
-    targets:      strategy.sellStrategy.targets,
-    risks:        strategy.risks,
-    status:       'active',
-  }
-
-  positions.push(newPos)
-  await writeDB(positions)
-  sendPositionAlert(newPos, 'new')
-  return NextResponse.json(newPos, { status: 201 })
+  const pos = toPosition(row as unknown as Record<string, unknown>)
+  sendPositionAlert(pos, 'new')
+  return NextResponse.json(pos, { status: 201 })
 }
 
-// 포지션 최신화 (기존 active 포지션에 새 전략 덮어쓰기)
 export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
+
   const body = await req.json()
   const { id, strategy } = body
   if (!id || !strategy) return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 })
 
-  const positions = await readDB()
-  const idx = positions.findIndex(p => p.id === id && p.status === 'active')
-  if (idx === -1) return NextResponse.json({ error: '활성 포지션 없음' }, { status: 404 })
+  const existing = await prisma.position.findFirst({
+    where: { id, userId: session.user.id, status: 'active' },
+  })
+  if (!existing) return NextResponse.json({ error: '활성 포지션 없음' }, { status: 404 })
 
-  positions[idx] = {
-    ...positions[idx],
-    registeredAt:   new Date().toISOString(),
-    signal:         strategy.signal,
-    summary:        strategy.summary,
-    entryType:      strategy.buyStrategy.type,
-    entries:        strategy.buyStrategy.entries,
-    stopLoss:       strategy.buyStrategy.stopLoss,
-    stopLossReason: strategy.buyStrategy.stopLossReason,
-    targets:        strategy.sellStrategy.targets,
-    risks:          strategy.risks,
-  }
+  const row = await prisma.position.update({
+    where: { id },
+    data: {
+      registeredAt:   new Date(),
+      signal:         strategy.signal,
+      summary:        strategy.summary,
+      entryType:      strategy.buyStrategy.type,
+      entries:        strategy.buyStrategy.entries,
+      stopLoss:       strategy.buyStrategy.stopLoss,
+      stopLossReason: strategy.buyStrategy.stopLossReason,
+      targets:        strategy.sellStrategy.targets,
+      risks:          strategy.risks,
+      holding:        strategy.holding ?? null,
+    },
+  })
 
-  await writeDB(positions)
-  sendPositionAlert(positions[idx], 'updated')
-  return NextResponse.json(positions[idx])
+  const pos = toPosition(row as unknown as Record<string, unknown>)
+  sendPositionAlert(pos, 'updated')
+  return NextResponse.json(pos)
 }
 
-// 포지션 종료 (논리 삭제)
 export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
+
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id 필요' }, { status: 400 })
 
-  const positions = await readDB()
-  const updated = positions.map(p =>
-    p.id === id ? { ...p, status: 'closed' as const, closedAt: new Date().toISOString() } : p
-  )
-  await writeDB(updated)
+  const existing = await prisma.position.findFirst({
+    where: { id, userId: session.user.id },
+  })
+  if (!existing) return NextResponse.json({ error: '포지션 없음' }, { status: 404 })
+
+  await prisma.position.update({
+    where: { id },
+    data: { status: 'closed', closedAt: new Date() },
+  })
+
   return NextResponse.json({ ok: true })
 }

@@ -47,3 +47,5 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 
+
+/src/generated/prisma

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import type { WatchlistItem, Position } from '@/types/stock'
+import type { WatchlistItem } from '@/types/stock'
 import type { RankingItem } from './api/rankings/route'
 import type { QuoteData } from './api/quotes/route'
 import type { TrendingSectorsData } from './api/trending-sectors/route'
@@ -219,36 +219,6 @@ function useTrendingSectors() {
       .catch(() => {})
   }, [])
   return data
-}
-
-function usePositions() {
-  const [positions, setPositions] = useState<Position[]>([])
-  const [prices,    setPrices]    = useState<Record<string, number | null>>({})
-
-  const load = useCallback(async () => {
-    const data = await fetch('/api/positions').then(r => r.json()).catch(() => [])
-    if (Array.isArray(data)) setPositions(data)
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  // 활성 포지션의 현재가 조회 (5분 캐시이므로 주기적 갱신 불필요)
-  useEffect(() => {
-    const active = positions.filter(p => p.status === 'active')
-    if (!active.length) return
-    const tickers = active.map(p => p.ticker).join(',')
-    fetch(`/api/prices?tickers=${tickers}`)
-      .then(r => r.json())
-      .then(data => setPrices(data))
-      .catch(() => {})
-  }, [positions])
-
-  const close = useCallback(async (id: string) => {
-    await fetch(`/api/positions?id=${id}`, { method: 'DELETE' })
-    setPositions(prev => prev.map(p => p.id === id ? { ...p, status: 'closed' as const } : p))
-  }, [])
-
-  return { positions, prices, close, reload: load }
 }
 
 // ─── 시장 분석 ────────────────────────────────────────────────────
@@ -842,8 +812,6 @@ export default function HomePage() {
   const { watchlist, watchedSet, add: addToWatchlist, remove: removeTicker } = useWatchlist()
   const watchTickers = useMemo(() => watchlist.map(w => w.ticker), [watchlist])
   const { quotes: watchQuotes } = useWatchlistData(watchTickers)
-  const { positions, prices, close: closePosition } = usePositions()
-
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTicker,   setNewTicker]   = useState('')
   const [newName,     setNewName]     = useState('')
@@ -878,7 +846,7 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 60, paddingTop: 48 }}>
 
       {/* ── 시장 상태 바 ── */}
       <div style={{
@@ -981,227 +949,6 @@ export default function HomePage() {
         maxWidth: 1440, margin: '0 auto', padding: '16px 24px',
         display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start',
       }}>
-
-        {/* ── 포지션 섹션 (전체 너비) ── */}
-        {(() => {
-          const IS_KR = (t: string) => /^\d{6}$/.test(t)
-          const fmtCur = (ticker: string, p: number) =>
-            IS_KR(ticker)
-              ? `${p.toLocaleString('ko-KR')}원`
-              : `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          const diffPct = (cur: number, target: number) => ((target - cur) / cur * 100)
-
-          const SIGNAL_META: Record<string, { label: string; color: string; bg: string }> = {
-            strong_buy:  { label: '강력매수', color: '#085041', bg: '#E1F5EE' },
-            buy:         { label: '매수',     color: '#27500A', bg: '#EAF3DE' },
-            watch:       { label: '관망',     color: '#633806', bg: '#FAEEDA' },
-            sell:        { label: '매도',     color: '#712B13', bg: '#FAECE7' },
-            strong_sell: { label: '강력매도', color: '#791F1F', bg: '#FCEBEB' },
-          }
-
-          const active = positions.filter(p => p.status === 'active')
-          const closed = positions.filter(p => p.status === 'closed')
-
-          if (positions.length === 0) return null
-
-          return (
-            <div style={{ gridColumn: '1 / -1', marginBottom: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 15, fontWeight: 700 }}>📌 포지션 관리</span>
-                <span style={{
-                  fontSize: 11, padding: '1px 8px', borderRadius: 10,
-                  background: 'var(--color-background-secondary)',
-                  color: 'var(--color-text-secondary)',
-                  border: '1px solid var(--color-border-secondary)',
-                }}>
-                  활성 {active.length} · 종료 {closed.length}
-                </span>
-                <a
-                  href="/api/positions/notify"
-                  target="_blank"
-                  style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)', textDecoration: 'none' }}
-                >
-                  Discord 알림 전송 →
-                </a>
-              </div>
-
-              {active.length === 0 ? (
-                <div style={{
-                  padding: '28px', textAlign: 'center',
-                  background: 'var(--color-background-primary)',
-                  border: '1px solid var(--color-border-tertiary)',
-                  borderRadius: 14, color: 'var(--color-text-secondary)', fontSize: 13,
-                }}>
-                  종목 분석 후 "포지션 등록" 버튼을 눌러 전략을 고정하세요
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
-                  {active.map(pos => {
-                    const cur      = prices[pos.ticker] ?? null
-                    const meta     = SIGNAL_META[pos.signal] ?? SIGNAL_META.watch
-                    const avgEntry = pos.entries.reduce((s, e) => s + e.price * (e.ratio / 100), 0)
-                    const retPct   = cur != null && avgEntry > 0 ? diffPct(avgEntry, cur) : null
-
-                    return (
-                      <div key={pos.id} style={{
-                        background: 'var(--color-background-primary)',
-                        border: '1px solid var(--color-border-tertiary)',
-                        borderRadius: 14, padding: '16px',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <button
-                                onClick={() => navigate(`/stock/${pos.ticker}`)}
-                                style={{ fontSize: 15, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--color-text-primary)' }}
-                              >
-                                {pos.ticker}
-                              </button>
-                              <span style={{
-                                fontSize: 11, padding: '2px 8px', borderRadius: 10,
-                                background: meta.bg, color: meta.color,
-                              }}>{meta.label}</span>
-                              {retPct != null && (
-                                <span style={{ fontSize: 12, fontWeight: 600, color: retPct >= 0 ? '#1D9E75' : '#E24B4A' }}>
-                                  {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 3 }}>
-                              {pos.name} · {new Date(pos.registeredAt).toLocaleDateString('ko-KR')} 등록
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => closePosition(pos.id)}
-                            style={{
-                              fontSize: 11, padding: '3px 10px', borderRadius: 8,
-                              border: '1px solid var(--color-border-secondary)',
-                              background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer',
-                            }}
-                          >
-                            종료
-                          </button>
-                        </div>
-
-                        <div style={{ marginBottom: 10 }}>
-                          <span style={{ fontSize: 18, fontWeight: 600 }}>
-                            {cur != null ? fmtCur(pos.ticker, cur) : '—'}
-                          </span>
-                        </div>
-
-                        {/* 공통 행 스타일 헬퍼 */}
-                        {(() => {
-                          const Row = ({ label, price, badge, right, rightColor }: {
-                            label: string; price: string; badge?: string
-                            right?: string; rightColor?: string
-                          }) => (
-                            <div style={{
-                              display: 'grid',
-                              gridTemplateColumns: '52px 1fr auto auto',
-                              alignItems: 'center', gap: 6,
-                              fontSize: 11, marginBottom: 4,
-                            }}>
-                              <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
-                              <span style={{ fontWeight: 500 }}>{price}</span>
-                              {badge
-                                ? <span style={{
-                                    fontSize: 10, padding: '1px 6px', borderRadius: 8,
-                                    background: 'var(--color-background-secondary)',
-                                    color: 'var(--color-text-secondary)',
-                                    border: '0.5px solid var(--color-border-secondary)',
-                                    whiteSpace: 'nowrap',
-                                  }}>{badge}</span>
-                                : <span />}
-                              <span style={{ color: rightColor ?? 'var(--color-text-secondary)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                {right}
-                              </span>
-                            </div>
-                          )
-
-                          const BarRow = ({ label, price, pct, reached }: {
-                            label: string; price: string; pct: number; reached: boolean
-                          }) => (
-                            <div style={{ marginBottom: 6 }}>
-                              <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '52px 1fr auto',
-                                alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 3,
-                              }}>
-                                <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
-                                <span style={{ fontWeight: 500 }}>{price}</span>
-                                <span style={{ color: reached ? '#1D9E75' : 'var(--color-text-secondary)', fontWeight: reached ? 600 : 400, whiteSpace: 'nowrap' }}>
-                                  {reached ? '✓ 달성' : `+${pct.toFixed(1)}% 남음`}
-                                </span>
-                              </div>
-                              <div style={{ height: 3, borderRadius: 2, background: 'var(--color-background-secondary)', overflow: 'hidden' }}>
-                                <div style={{
-                                  height: '100%', borderRadius: 2,
-                                  background: reached ? '#1D9E75' : '#3B6EFF',
-                                  width: `${Math.min(100, Math.max(0, 100 - pct))}%`,
-                                  transition: 'width .4s',
-                                }} />
-                              </div>
-                            </div>
-                          )
-
-                          return (
-                            <>
-                              {/* 매수 */}
-                              <div style={{ marginBottom: 8 }}>
-                                <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: 5, textTransform: 'uppercase' }}>
-                                  매수 {pos.entryType === 'split' ? '분할' : '일괄'}
-                                </div>
-                                {pos.entries.map((e, i) => {
-                                  const dist = cur != null ? diffPct(cur, e.price) : null
-                                  return (
-                                    <Row key={i}
-                                      label={pos.entryType === 'split' ? `${i + 1}차` : '진입가'}
-                                      price={fmtCur(pos.ticker, e.price)}
-                                      badge={pos.entryType === 'split' ? `${e.ratio}%` : undefined}
-                                      right={dist == null ? undefined : dist <= 0 ? `✓ 진입 (${dist.toFixed(1)}%)` : `${dist.toFixed(1)}% 위`}
-                                      rightColor={dist != null && dist <= 0 ? '#1D9E75' : undefined}
-                                    />
-                                  )
-                                })}
-                                <div style={{ height: '0.5px', background: 'var(--color-border-tertiary)', margin: '4px 0' }} />
-                                <Row
-                                  label="손절선"
-                                  price={fmtCur(pos.ticker, pos.stopLoss)}
-                                  right={cur != null ? `${diffPct(cur, pos.stopLoss).toFixed(1)}%` : undefined}
-                                  rightColor={cur != null && diffPct(cur, pos.stopLoss) < 0 ? '#E24B4A' : undefined}
-                                />
-                              </div>
-
-                              {/* 매도 */}
-                              <div>
-                                <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: 5, textTransform: 'uppercase' }}>
-                                  매도 목표
-                                </div>
-                                {pos.targets.map((t, i) => {
-                                  const pct     = cur != null ? diffPct(cur, t.price) : 0
-                                  const reached = cur != null && pct <= 0
-                                  return (
-                                    <BarRow key={i}
-                                      label={`${i + 1}차 목표`}
-                                      price={fmtCur(pos.ticker, t.price)}
-                                      pct={pct}
-                                      reached={reached}
-                                    />
-                                  )
-                                })}
-                              </div>
-                            </>
-                          )
-                        })()}
-
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })()}
 
         {/* ── 좌: 랭킹 ── */}
         <div>

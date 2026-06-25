@@ -1,4 +1,7 @@
 import './globals.css'
+import SessionProvider from '@/components/SessionProvider'
+import Header from '@/components/Header'
+import BottomNav from '@/components/BottomNav'
 
 export const metadata = {
   title: '주식 분석 대시보드',
@@ -8,7 +11,13 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <SessionProvider>
+          <Header />
+          {children}
+          <BottomNav />
+        </SessionProvider>
+      </body>
     </html>
   )
 }
