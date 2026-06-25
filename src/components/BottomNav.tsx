@@ -30,10 +30,10 @@ export default function BottomNav() {
   }
 
   const tabs = [
-    { path: '/',           label: '홈',    icon: '⌂' },
-    { path: '/positions',  label: '포지션', icon: '📌', badge: activeCount || undefined },
-    { path: '/settings',   label: '설정',   icon: '☰' },
+    { path: '/',          label: '홈',    icon: '⌂' },
+    { path: '/positions', label: '포지션', icon: '📌', badge: activeCount || undefined },
     ...(isAdmin ? [{ path: '/admin', label: '관리', icon: '⚙' }] : []),
+    { path: '/settings',  label: '설정',   icon: '☰' },
   ]
 
   return (
