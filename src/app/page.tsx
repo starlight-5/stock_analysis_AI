@@ -848,7 +848,7 @@ export default function HomePage() {
 
   return (
     <AuthGuard>
-    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 60, paddingTop: 48 }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 64, paddingTop: 48 }}>
 
       {/* ── 시장 상태 바 ── */}
       <div style={{

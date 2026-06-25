@@ -35,11 +35,11 @@ export default function BottomNav() {
   return (
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
-      height: 60,
-      background: '#1C2038',
-      borderTop: '2px solid #2D3460',
+      height: 64,
+      background: '#252B45',
+      borderTop: '2px solid #5B6AAA',
       display: 'flex',
-      boxShadow: '0 -4px 16px rgba(0,0,0,0.4)',
+      boxShadow: '0 -6px 24px rgba(0,0,0,0.6)',
     }}>
       {tabs.map(tab => {
         const active = pathname === tab.path

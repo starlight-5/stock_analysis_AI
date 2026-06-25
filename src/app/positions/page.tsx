@@ -292,7 +292,7 @@ export default function PositionsPage() {
 
   return (
     <AuthGuard>
-    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 60, paddingTop: 48 }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 64, paddingTop: 48 }}>
 
       {/* 헤더 */}
       <header style={{
