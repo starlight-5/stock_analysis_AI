@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getKIToken, KI_BASE, KI_KEY, KI_SECRET } from '@/lib/kisToken'
+import type { ExtInfo, PriceData } from '@/types/price'
 
 const CACHE_TTL = 5 * 60 * 1000
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
-
-export type ExtInfo = { price: number; change: number; changePct: number; type: 'pre' | 'post' }
-export type PriceData = { price: number | null; ext: ExtInfo | null }
 
 ;(globalThis as any).__priceCache2 ??= new Map()
 const priceCache: Map<string, { data: PriceData; exp: number }> = (globalThis as any).__priceCache2

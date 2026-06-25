@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import AuthGuard from '@/components/AuthGuard'
 import type { Position } from '@/types/stock'
-import type { PriceData, ExtInfo } from '@/app/api/prices/route'
+import type { PriceData, ExtInfo } from '@/types/price'
 
 // ─── 유틸 ────────────────────────────────────────────────────────
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
