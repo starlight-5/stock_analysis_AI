@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import AuthGuard from '@/components/AuthGuard'
 import type { Position } from '@/types/stock'
+import type { PriceData, ExtInfo } from '@/app/api/prices/route'
 
 // ─── 유틸 ────────────────────────────────────────────────────────
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
@@ -24,7 +25,7 @@ const SIGNAL_META: Record<string, { label: string; color: string; bg: string }> 
 // ─── 훅 ──────────────────────────────────────────────────────────
 function usePositions() {
   const [positions, setPositions] = useState<Position[]>([])
-  const [prices,    setPrices]    = useState<Record<string, number | null>>({})
+  const [prices,    setPrices]    = useState<Record<string, PriceData | null>>({})
 
   const load = useCallback(async () => {
     try {
@@ -60,10 +61,11 @@ function usePositions() {
 
 // ─── 포지션 카드 ──────────────────────────────────────────────────
 const PositionCard = memo(function PositionCard({
-  pos, cur, navigate, onClose,
+  pos, cur, ext, navigate, onClose,
 }: {
   pos: Position
   cur: number | null
+  ext: ExtInfo | null
   navigate: (path: string) => void
   onClose: (id: string) => void
 }) {
@@ -175,6 +177,15 @@ const PositionCard = memo(function PositionCard({
         <span style={{ fontSize: 18, fontWeight: 600 }}>
           {cur != null ? fmtCur(pos.ticker, cur) : '—'}
         </span>
+        {ext && (
+          <span style={{
+            marginLeft: 8, fontSize: 11,
+            color: ext.change >= 0 ? '#1D9E75' : '#E24B4A',
+          }}>
+            {ext.type === 'pre' ? '장전' : '시간외'} {fmtCur(pos.ticker, ext.price)}{' '}
+            {ext.changePct >= 0 ? '+' : ''}{ext.changePct.toFixed(2)}%
+          </span>
+        )}
       </div>
 
       {/* 매수 */}
@@ -366,7 +377,8 @@ export default function PositionsPage() {
                     <PositionCard
                       key={pos.id}
                       pos={pos}
-                      cur={prices[pos.ticker] ?? null}
+                      cur={prices[pos.ticker]?.price ?? null}
+                      ext={prices[pos.ticker]?.ext ?? null}
                       navigate={navigate}
                       onClose={closePosition}
                     />
@@ -390,6 +402,7 @@ export default function PositionsPage() {
                       key={pos.id}
                       pos={pos}
                       cur={null}
+                      ext={null}
                       navigate={navigate}
                       onClose={closePosition}
                     />
