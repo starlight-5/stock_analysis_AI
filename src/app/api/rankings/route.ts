@@ -133,6 +133,7 @@ export async function GET(req: NextRequest) {
     const data = market === 'kr' ? await fetchKR() : await fetchUS()
     return NextResponse.json(data)
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 502 })
+    console.error('[rankings]', e.message)
+    return NextResponse.json({ error: e.message })
   }
 }
