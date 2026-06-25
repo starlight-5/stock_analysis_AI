@@ -540,6 +540,72 @@ function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapshot): Str
   }
 }
 
+// ─── DB 포지션 → StrategyResult 변환 (런타임 검증 포함) ────────────
+const VALID_SIGNALS = new Set(['strong_buy', 'buy', 'watch', 'sell', 'strong_sell'])
+
+function parsePositionToStrategy(position: {
+  ticker: string
+  registeredAt: Date
+  summary: string
+  signal: string
+  entryType: string
+  entries: unknown
+  stopLoss: number
+  stopLossReason: string
+  targets: unknown
+  risks: unknown
+  holding: unknown
+}): StrategyResult {
+  const toEntries = (raw: unknown): StrategyResult['buyStrategy']['entries'] => {
+    if (!Array.isArray(raw)) return []
+    return raw.map((e: any) => ({
+      price:  typeof e?.price  === 'number' ? e.price  : 0,
+      ratio:  typeof e?.ratio  === 'number' ? e.ratio  : 0,
+      reason: typeof e?.reason === 'string' ? e.reason : '',
+    }))
+  }
+
+  const toTargets = (raw: unknown): StrategyResult['sellStrategy']['targets'] => {
+    if (!Array.isArray(raw)) return []
+    return raw.map((t: any) => ({
+      price:  typeof t?.price  === 'number' ? t.price  : 0,
+      ratio:  typeof t?.ratio  === 'number' ? t.ratio  : 0,
+      reason: typeof t?.reason === 'string' ? t.reason : '',
+    }))
+  }
+
+  const toRisks = (raw: unknown): string[] => {
+    if (!Array.isArray(raw)) return []
+    return raw.map((r: any) => (typeof r === 'string' ? r : String(r)))
+  }
+
+  const h = (raw: unknown) => (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, any> : {})
+  const holding = h(position.holding)
+
+  return {
+    ticker:       position.ticker,
+    generatedAt:  position.registeredAt.toISOString(),
+    summary:      position.summary,
+    signal:       VALID_SIGNALS.has(position.signal) ? (position.signal as StrategyResult['signal']) : 'watch',
+    buyStrategy: {
+      type:           position.entryType === 'lump' ? 'lump' : 'split',
+      entries:        toEntries(position.entries),
+      stopLoss:       position.stopLoss,
+      stopLossReason: position.stopLossReason,
+    },
+    sellStrategy: { targets: toTargets(position.targets) },
+    risks:   toRisks(position.risks),
+    holding: {
+      minWeeks:        typeof holding.minWeeks    === 'number' ? holding.minWeeks    : 2,
+      targetWeeks:     typeof holding.targetWeeks === 'number' ? holding.targetWeeks : 6,
+      maxWeeks:        typeof holding.maxWeeks    === 'number' ? holding.maxWeeks    : 12,
+      stopCondition:   typeof holding.stopCondition   === 'string' ? holding.stopCondition   : 'MA20 종가 이탈 시 즉시 손절',
+      reviewCondition: typeof holding.reviewCondition === 'string' ? holding.reviewCondition : '목표 기간 경과 후 재검토',
+    },
+    rawText: '',
+  }
+}
+
 // ─── API Route Handler ───────────────────────────────────────────
 export async function POST(req: NextRequest) {
   let snap: IndicatorSnapshot | null = null
@@ -569,26 +635,7 @@ export async function POST(req: NextRequest) {
         if (position) {
           const result = await fetchStockData(ticker)
           const currentSnap = getSnapshot(result.bars, calcIndicators(result.bars))
-          const strategy: StrategyResult = {
-            ticker: position.ticker,
-            generatedAt: position.registeredAt.toISOString(),
-            summary: position.summary,
-            signal: position.signal as StrategyResult['signal'],
-            buyStrategy: {
-              type: position.entryType as 'lump' | 'split',
-              entries: position.entries as StrategyResult['buyStrategy']['entries'],
-              stopLoss: position.stopLoss,
-              stopLossReason: position.stopLossReason,
-            },
-            sellStrategy: { targets: position.targets as StrategyResult['sellStrategy']['targets'] },
-            risks: position.risks as string[],
-            holding: (position.holding as StrategyResult['holding']) ?? {
-              minWeeks: 2, targetWeeks: 6, maxWeeks: 12,
-              stopCondition: 'MA20 종가 이탈 시 즉시 손절',
-              reviewCondition: '목표 기간 경과 후 재검토',
-            },
-            rawText: '',
-          }
+          const strategy = parsePositionToStrategy(position)
           return NextResponse.json({ strategy, snapshot: currentSnap, fromDB: true })
         }
       }
