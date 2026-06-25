@@ -4,10 +4,11 @@
 
 **한국·미국 주식을 AI가 분석해 매수·매도 전략을 자동으로 세워주는 개인 투자 도구**
 
-![Next.js](https://img.shields.io/badge/Next.js_14-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Google Gemini](https://img.shields.io/badge/Gemini_AI-4285F4?style=for-the-badge&logo=google&logoColor=white)
-![Yahoo Finance](https://img.shields.io/badge/Yahoo_Finance-6001D2?style=for-the-badge&logo=yahoo&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 
 </div>
 
@@ -22,6 +23,11 @@
 ---
 
 ## 주요 기능
+
+### 🔐 로그인 & 접근 제어
+- 이메일/비밀번호 로그인 및 Google OAuth 로그인 지원
+- `ALLOWED_EMAILS` 환경변수로 허용 사용자 화이트리스트 관리
+- 허용되지 않은 사용자가 로그인 시도 시 관리자에게 Discord 접근 요청 알림 전송
 
 ### 🔥 지금 뜨는 섹터
 ETF 수익률 데이터로 현재 강한 섹터를 객관적으로 파악하고, Gemini AI가 관련 미국·한국 종목을 추천합니다.
@@ -83,15 +89,17 @@ signal: strong_buy / buy / watch / sell / strong_sell
 
 | 분류 | 기술 |
 |------|------|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Styling | Vanilla CSS · CSS Variables 다크 테마 |
-| AI | Google Gemini 3.1 Flash Lite |
+| AI | Google Gemini Flash Lite |
+| 인증 | NextAuth v4 (Credentials + Google OAuth) |
 | 미국 주가 | Alpaca Trading API |
 | 한국 주가 | 한국투자증권 Open API |
 | 시장·뉴스·실적 | Yahoo Finance |
-| 저장소 | 로컬 JSON 파일 (`data/positions.json`) |
+| 데이터베이스 | Supabase PostgreSQL (Prisma v7) |
 | 캐시 | `globalThis` 인메모리 · TTL 관리 |
+| 배포 | Vercel |
 
 ---
 
@@ -107,34 +115,48 @@ npm install
 
 ### 2. 환경 변수 설정
 
-`.env.local` 파일을 생성하고 아래 값을 채웁니다.
+`.env.local.example`을 복사해 `.env.local`을 만들고 값을 채웁니다.
 
-```ini
-# Alpaca Trading API (미국 주가)
-ALPACA_API_KEY_ID=
-ALPACA_SECRET_KEY=
-
-# 한국투자증권 Open API (한국 주가)
-KOREA_INVESTMENT_API_KEY=
-KOREA_INVESTMENT_API_SECRET=
-KOREA_INVESTMENT_ACCOUNT=
-# KOREA_INVESTMENT_MODE=mock   # 모의투자 서버 사용 시
-
-# Google Gemini API (AI 전략·섹터 추천)
-GEMINI_API_KEY=
-
-# Discord 웹훅 (선택)
-DISCORD_WEBHOOK_URL=
+```bash
+cp .env.local.example .env.local
 ```
+
+| 변수 | 설명 |
+|------|------|
+| `ALPACA_API_KEY_ID` / `ALPACA_SECRET_KEY` | 미국 주가 (Alpaca) |
+| `KOREA_INVESTMENT_API_KEY` / `KOREA_INVESTMENT_API_SECRET` | 한국 주가 (한국투자증권) |
+| `GEMINI_API_KEY` | AI 분석 (Google Gemini) |
+| `DATABASE_URL` | Supabase PostgreSQL 연결 문자열 |
+| `NEXTAUTH_SECRET` | JWT 암호화 키 |
+| `NEXTAUTH_URL` | 서비스 URL (`http://localhost:3000`) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
+| `ALLOWED_EMAILS` | 허용 사용자 이메일 (쉼표 구분, 비우면 전체 허용) |
+| `DISCORD_WEBHOOK_URL` | 포지션 등록 알림 웹훅 (선택) |
+| `DISCORD_ACCESS_REQUEST_WEBHOOK_URL` | 접근 요청 알림 웹훅 (`ALLOWED_EMAILS` 사용 시 필수) |
 
 > `GEMINI_API_KEY`가 없어도 규칙 기반 폴백 엔진으로 모든 기능이 작동합니다.
 
-### 3. 실행
+### 3. DB 마이그레이션
+
+```bash
+npx prisma db push
+```
+
+### 4. 실행
 
 ```bash
 npm run dev
 # → http://localhost:3000
 ```
+
+---
+
+## 배포 (Vercel)
+
+1. Vercel에 저장소 연결
+2. **Settings → Environment Variables**에 `.env.local`의 모든 값 입력
+3. `NEXTAUTH_URL`은 Vercel 배포 URL로 설정 (`https://your-app.vercel.app`)
+4. Push 시 자동 배포
 
 ---
 
@@ -144,7 +166,8 @@ npm run dev
 - **AI 프롬프트 엔지니어링**: 정형화된 JSON 전략을 안정적으로 반환하게 Gemini 프롬프트 설계
 - **폴백 패턴**: AI 장애 상황을 상정하고 규칙 기반 엔진을 병렬 유지하는 방식
 - **캐시 전략**: 외부 API 쿼터 보호를 위해 `globalThis` TTL 캐시 계층 구성
-- **타입 안전성**: `satisfies` / `as const` 패턴과 좁은 리터럴 타입의 충돌 해결
+- **인증 설계**: NextAuth v4 + Prisma 7 + Supabase 연동, 서버리스 환경의 CSRF 쿠키 이슈 해결
+- **서버리스 주의점**: Vercel 함수는 `return` 즉시 종료 — 비동기 작업은 반드시 `await` 필요
 
 ---
 
@@ -161,6 +184,8 @@ npm run dev
 - [Alpaca Trading API Docs](https://docs.alpaca.markets/)
 - [한국투자증권 Open API](https://apiportal.koreainvestment.com/)
 - [Google Gemini API Docs](https://ai.google.dev/gemini-api/docs)
+- [NextAuth.js v4 Docs](https://next-auth.js.org/)
+- [Supabase Docs](https://supabase.com/docs)
 - 토스 디자인 시스템 (UI 참고)
 
 ---
