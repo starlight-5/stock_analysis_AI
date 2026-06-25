@@ -117,8 +117,8 @@ function LoginContent() {
             <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>{error}</p>
           )}
 
-          {/* 케이스 3: 허용되지 않은 사용자 */}
-          {denied && !requested && (
+          {/* 케이스 3: 허용되지 않은 사용자 (이메일/비번 로그인) */}
+          {denied && !googleDenied && !requested && (
             <div style={{
               background: 'rgba(255,90,90,0.08)',
               border: '1px solid rgba(255,90,90,0.3)',
