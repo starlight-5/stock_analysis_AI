@@ -26,7 +26,7 @@ export default function Header() {
       boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
     }}>
       <span style={{ fontSize: 15, fontWeight: 700, color: '#ECEEF8', letterSpacing: '-0.3px' }}>
-        📈 AI 주식 분석
+        📈 AI 주식 분석 대시보드
       </span>
 
       <div style={{ position: 'relative' }}>
