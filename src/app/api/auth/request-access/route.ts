@@ -6,13 +6,18 @@ export async function POST(req: NextRequest) {
 
   const webhookUrl = process.env.DISCORD_ACCESS_REQUEST_WEBHOOK_URL
   if (webhookUrl) {
-    fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: `🔔 **접근 요청** | \`${email}\` 님이 서비스 접근을 요청했습니다.`,
-      }),
-    }).catch(() => {})
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `🔔 **접근 요청** | \`${email}\` 님이 서비스 접근을 요청했습니다.`,
+        }),
+      })
+      if (!res.ok) console.error('[request-access] Discord webhook failed:', res.status, await res.text())
+    } catch (err) {
+      console.error('[request-access] Discord webhook error:', err)
+    }
   }
 
   return NextResponse.json({ ok: true })
