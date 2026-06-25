@@ -83,6 +83,16 @@ model Position {
   @@index([userId, status])
 }
 
+// ─── 접근 요청 ────────────────────────────────────────────────────
+
+model AccessRequest {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  status      String    @default("pending") // pending | approved | rejected
+  requestedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+}
+
 // ─── 관심종목 ─────────────────────────────────────────────────────
 
 model WatchlistItem {
