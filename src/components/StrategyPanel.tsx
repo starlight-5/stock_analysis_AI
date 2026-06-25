@@ -117,27 +117,59 @@ interface Props {
 }
 
 export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, onAnalyze, onForceRefresh }: Props) {
-  const [showRaw,       setShowRaw]       = useState(false)
-  const [registering,   setRegistering]   = useState(false)
-  const [registerState, setRegisterState] = useState<'idle' | 'ok' | 'err'>('idle')
+  const [showRaw,         setShowRaw]         = useState(false)
+  const [registering,     setRegistering]     = useState(false)
+  const [registerState,   setRegisterState]   = useState<'idle' | 'ok' | 'ok_updated' | 'err'>('idle')
+  const [confirmOverwrite, setConfirmOverwrite] = useState<{ id: string; registeredAt: string } | null>(null)
   const isKR = /^\d{6}$/.test(ticker)
+
+  const finishWith = (state: typeof registerState) => {
+    setRegisterState(state)
+    setRegistering(false)
+    setTimeout(() => setRegisterState('idle'), 3000)
+  }
 
   const handleRegister = async () => {
     if (!strategy) return
     setRegistering(true)
     setRegisterState('idle')
     try {
+      // 기존 active 포지션 중복 확인
+      const all = await fetch('/api/positions').then(r => r.json()).catch(() => []) as
+        Array<{ ticker: string; id: string; registeredAt: string; status: string }>
+      const existing = all.find(p => p.ticker === ticker.toUpperCase() && p.status === 'active')
+
+      if (existing) {
+        setConfirmOverwrite({ id: existing.id, registeredAt: existing.registeredAt })
+        setRegistering(false)
+        return
+      }
+
+      // 중복 없음 → 신규 등록
       const res = await fetch('/api/positions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ ticker, name: name ?? ticker, strategy }),
       })
-      setRegisterState(res.ok ? 'ok' : 'err')
+      finishWith(res.ok ? 'ok' : 'err')
     } catch {
-      setRegisterState('err')
-    } finally {
-      setRegistering(false)
-      setTimeout(() => setRegisterState('idle'), 3000)
+      finishWith('err')
+    }
+  }
+
+  const handleConfirmOverwrite = async () => {
+    if (!confirmOverwrite || !strategy) return
+    setConfirmOverwrite(null)
+    setRegistering(true)
+    try {
+      const res = await fetch('/api/positions', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id: confirmOverwrite.id, strategy }),
+      })
+      finishWith(res.ok ? 'ok_updated' : 'err')
+    } catch {
+      finishWith('err')
     }
   }
 
@@ -301,27 +333,73 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
 
           {/* 포지션 등록 */}
           <div style={{ marginBottom: 14 }}>
-            <button
-              onClick={handleRegister}
-              disabled={registering || registerState === 'ok'}
-              style={{
-                width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
-                background: registerState === 'ok'  ? '#1D9E75'
-                          : registerState === 'err' ? '#E24B4A'
-                          : '#3B6EFF',
-                color: '#fff', fontSize: 13, fontWeight: 600,
-                cursor: registering || registerState === 'ok' ? 'default' : 'pointer',
-                transition: 'background .2s',
-              }}
-            >
-              {registering        ? '등록 중…'
-               : registerState === 'ok'  ? '✓ 포지션 등록 완료'
-               : registerState === 'err' ? '⚠ 등록 실패 — 재시도'
-               : '📌 포지션 등록'}
-            </button>
-            {registerState === 'ok' && (
+            {confirmOverwrite ? (
+              // ── 중복 경고 ──
+              <div style={{
+                borderRadius: 8, border: '1px solid #EF9F2755',
+                background: '#EF9F2710', padding: '12px 14px',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#EF9F27', marginBottom: 4 }}>
+                  ⚠ 이미 등록된 포지션이 있습니다
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
+                  등록일 {new Date(confirmOverwrite.registeredAt).toLocaleString('ko-KR', {
+                    year: 'numeric', month: 'numeric', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
+                  })} · 최신화하면 기존 전략이 현재 전략으로 교체됩니다
+                </div>
+                <div style={{ display: 'flex', gap: 7 }}>
+                  <button
+                    onClick={() => setConfirmOverwrite(null)}
+                    style={{
+                      flex: 1, padding: '7px 0', borderRadius: 7,
+                      border: '1px solid var(--color-border-secondary)',
+                      background: 'var(--color-background-secondary)',
+                      color: 'var(--color-text-secondary)', fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleConfirmOverwrite}
+                    style={{
+                      flex: 1, padding: '7px 0', borderRadius: 7, border: 'none',
+                      background: '#EF9F27', color: '#fff', fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    최신화
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // ── 기본 등록 버튼 ──
+              <button
+                onClick={handleRegister}
+                disabled={registering || registerState === 'ok' || registerState === 'ok_updated'}
+                style={{
+                  width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
+                  background: registerState === 'ok' || registerState === 'ok_updated' ? '#1D9E75'
+                            : registerState === 'err' ? '#E24B4A'
+                            : '#3B6EFF',
+                  color: '#fff', fontSize: 13, fontWeight: 600,
+                  cursor: registering || registerState === 'ok' || registerState === 'ok_updated' ? 'default' : 'pointer',
+                  transition: 'background .2s',
+                }}
+              >
+                {registering                    ? '확인 중…'
+                 : registerState === 'ok'        ? '✓ 포지션 등록 완료'
+                 : registerState === 'ok_updated' ? '✓ 포지션 최신화 완료'
+                 : registerState === 'err'       ? '⚠ 실패 — 재시도'
+                 : '📌 포지션 등록'}
+              </button>
+            )}
+            {(registerState === 'ok' || registerState === 'ok_updated') && (
               <div style={{ fontSize: 11, color: '#1D9E75', marginTop: 5, textAlign: 'center' }}>
-                메인 페이지 포지션 섹션에서 진행 상황을 확인하세요
+                {registerState === 'ok_updated'
+                  ? '기존 포지션이 현재 전략으로 최신화되었습니다'
+                  : '메인 페이지 포지션 섹션에서 진행 상황을 확인하세요'}
               </div>
             )}
           </div>

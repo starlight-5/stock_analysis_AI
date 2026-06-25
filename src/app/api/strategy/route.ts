@@ -41,6 +41,52 @@ interface NewsItem {
   date: string
 }
 
+interface EarningsItem {
+  period: string
+  quarter: string
+  epsEstimate: number | null
+  epsActual: number | null
+  surprisePercent: number | null
+}
+
+interface EarningsData {
+  nextEarningsDate: string | null
+  epsEstimateNext: number | null
+  history: EarningsItem[]
+}
+
+async function fetchEarnings(ticker: string): Promise<EarningsData> {
+  try {
+    const symbol = /^\d{6}$/.test(ticker) ? `${ticker}.KS` : ticker
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=calendarEvents%2CearningsHistory`,
+      {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(6000),
+      }
+    )
+    const json = await res.json()
+    const result = json?.quoteSummary?.result?.[0]
+
+    const calEvents = result?.calendarEvents?.earnings
+    const nextEarningsDate = calEvents?.earningsDate?.[0]?.fmt ?? null
+    const epsEstimateNext = calEvents?.earningsAverage?.raw ?? null
+
+    const rawHistory = result?.earningsHistory?.history ?? []
+    const history: EarningsItem[] = rawHistory.slice(-4).map((h: any) => ({
+      period: h.period ?? '',
+      quarter: h.quarter?.fmt ?? '',
+      epsEstimate: h.epsEstimate?.raw ?? null,
+      epsActual: h.epsActual?.raw ?? null,
+      surprisePercent: h.surprisePercent?.raw != null ? Math.round(h.surprisePercent.raw * 1000) / 10 : null,
+    }))
+
+    return { nextEarningsDate, epsEstimateNext, history }
+  } catch {
+    return { nextEarningsDate: null, epsEstimateNext: null, history: [] }
+  }
+}
+
 async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
   try {
     const symbol = /^\d{6}$/.test(ticker) ? `${ticker}.KS` : ticker
@@ -66,7 +112,7 @@ async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
 
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
 
-function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]): string {
+function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData): string {
   const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
   const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
@@ -96,10 +142,34 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]):
     ? news.map((n, i) => `${i + 1}. [${n.date}] ${n.title} (${n.publisher})`).join('\n')
     : '뉴스 없음 — 기술적 지표만으로 판단할 것'
 
+  const earningsSection = (() => {
+    const lines: string[] = []
+    if (earnings.nextEarningsDate) {
+      const est = earnings.epsEstimateNext != null ? ` (예상 EPS: ${earnings.epsEstimateNext})` : ''
+      lines.push(`- 다음 실적 발표일: ${earnings.nextEarningsDate}${est}`)
+    } else {
+      lines.push('- 다음 실적 발표일: 미확인')
+    }
+    if (earnings.history.length > 0) {
+      lines.push('- 최근 EPS 실적 이력:')
+      earnings.history.forEach((e, i) => {
+        const actual  = e.epsActual   != null ? e.epsActual.toFixed(2)   : 'N/A'
+        const est2    = e.epsEstimate != null ? e.epsEstimate.toFixed(2) : 'N/A'
+        const surp    = e.surprisePercent != null
+          ? ` → 서프라이즈 ${e.surprisePercent > 0 ? '+' : ''}${e.surprisePercent.toFixed(1)}%`
+          : ''
+        lines.push(`  ${i + 1}. ${e.period} (${e.quarter}): 예상 ${est2} / 실제 ${actual}${surp}`)
+      })
+    } else {
+      lines.push('- 실적 이력 없음')
+    }
+    return lines.join('\n')
+  })()
+
   return `
-당신은 주식 기술적 분석 + 뉴스 감성 분석 전문가입니다.
-아래 기술적 지표와 최근 뉴스를 종합 분석하여 매매 전략을 수립하세요.
-뉴스의 긍정·부정 sentiment가 기술적 신호와 충돌하면 이를 반드시 반영하고 risks에 명시하세요.
+당신은 주식 기술적 분석 + 뉴스 감성 분석 + 실적 분석 전문가입니다.
+아래 기술적 지표, 최근 뉴스, 실적 발표 데이터를 종합 분석하여 매매 전략을 수립하세요.
+뉴스의 긍정·부정 sentiment 및 실적 서프라이즈가 기술적 신호와 충돌하면 이를 반드시 반영하고 risks에 명시하세요.
 
 ## 종목 정보
 - 티커: ${ticker}
@@ -118,6 +188,9 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[]):
 ## 최근 뉴스 (Yahoo Finance)
 ${newsSection}
 
+## 실적 발표 데이터 (Yahoo Finance)
+${earningsSection}
+
 ## 출력 형식 (반드시 순수 JSON만 — 마크다운 코드블록 없이)
 {
   "signal": "strong_buy | buy | watch | sell | strong_sell 중 하나",
@@ -132,7 +205,7 @@ ${newsSection}
   },
   "sellStrategy": {
     "targets": [
-      { "price": ${priceUnit}, "ratio": 비중(0-100), "reason": "목표가 근거" }
+      { "price": ${priceUnit}, "ratio": 비중(0-100), "reason": "기술적 근거 (MA선·BB밴드·매물대 등 구체적 레벨 명시)" }
     ]
   },
   "risks": ["리스크 1 (가능하면 뉴스 근거 포함)", "리스크 2", "리스크 3"]
@@ -141,8 +214,13 @@ ${newsSection}
 ## 전략 작성 규칙
 1. split 조건: RSI < 40 또는 하락 추세 또는 BB 하단 근처 또는 부정적 뉴스 존재 → 2~3회 분할 진입
 2. lump 조건: 강한 모멘텀 (거래량 급증 + 골든크로스 + RSI 50~65) AND 긍정적/중립 뉴스
-3. 1차 목표: +5~8%, 2차 목표: +12~20%
-4. 손절선: -5~8% 범위 내 주요 지지선
+3. 목표가 근거 규칙 (가장 중요):
+   - targets의 reason은 반드시 구체적인 기술적 레벨을 명시할 것
+     예시 (O): "MA60(${fmtPrice(snap.ma60)}) 저항선 도달", "볼린저 밴드 상단(${fmtPrice(snap.bbUpper)}) 저항", "MA120(${fmtPrice(snap.ma120)}) 장기 저항선"
+     예시 (X): "+5% 수익 실현 구간", "+12% 목표가", "단기 익절 구간" — 단순 수익률 표기는 근거가 아니므로 절대 금지
+   - 1차 목표가는 가능하면 MA60(${fmtPrice(snap.ma60)}) 또는 BB 중심선(${fmtPrice(snap.bbMid)}) 근처로 설정
+   - 2차 목표가는 MA120(${fmtPrice(snap.ma120)}) 또는 BB 상단(${fmtPrice(snap.bbUpper)}) 근처로 설정
+4. 손절선: MA20(${fmtPrice(snap.ma5 != null && snap.ma20 != null ? snap.ma20 : null)}) 또는 BB 하단(${fmtPrice(snap.bbLower)}) 등 실제 지지선 기준으로 설정
 5. split 시 entries 2개 이상, ratio 합계 정확히 100
 6. 모든 price 값은 ${priceUnit}로 출력 (문자열 아닌 숫자)
 7. risks 최소 3개, 뉴스에서 발견된 리스크 우선 반영
@@ -157,6 +235,11 @@ ${newsSection}
     - strong_buy/buy: 모든 targets price > 현재가 ${fmtPrice(currentPrice)}
     - sell/strong_sell: targets는 빈 배열([])로 작성 가능
 11. 분할 매수 간격: split 시 각 entries 진입가 간격 최소 2% 이상 차이 (예: 1차 ${fmtPrice(currentPrice)} → 2차는 최소 ${fmtPrice(currentPrice != null ? currentPrice * 0.98 : null)} 이하)
+12. 실적 발표 반영 규칙:
+    - 다음 실적 발표일이 2주 이내면 risks에 "실적 발표 이벤트 리스크 — [날짜]" 반드시 포함
+    - 최근 EPS 서프라이즈가 연속 2회 이상 +10% 초과 시 signal 상향 가중 가능
+    - 최근 EPS 서프라이즈가 -10% 이하 발생 시 signal 하향 가중 및 risks에 포함
+    - 실적 이력이 없으면 해당 규칙은 무시하고 기술적 지표만으로 판단
 `
 }
 
@@ -233,121 +316,181 @@ function parseStrategyResponse(
 }
 
 // ─── 규칙 기반(Rule-based) 백업 전략 생성기 (폴백) ────────────────────
-/**
- * Gemini API Key가 잘못되었거나, 무료 쿼터 제한(Rate Limit)을 넘는 비상 상황 시
- * 현재 보조지표 데이터를 바탕으로 즉각적인 투자 분석을 자체 조달하는 핵심 폴백 함수입니다.
- */
+// 5개 지표(RSI·BB·MACD·MA크로스·거래량)를 점수화해 종합 판단.
+// RSI+BB 두 개만 보던 방식에서 개선.
 function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapshot): StrategyResult {
-  const price = snap.close
-  const rsi = snap.rsi ?? 50
-  const bbPos = snap.bbPosition ?? 0.5
-  
-  let signal: StrategyResult['signal'] = 'watch'
-  let summary = ''
-  let buyType: 'lump' | 'split' = 'split'
-  let entries: StrategyResult['buyStrategy']['entries'] = []
-  let stopLoss = Math.round(price * 0.94)
-  let stopLossReason = '직전 최근 지지선 붕괴 및 하방 리스크 대응을 위한 손절 가이드 적용'
-  let targets: StrategyResult['sellStrategy']['targets'] = []
-  let risks: string[] = []
+  const isKR  = /^\d{6}$/.test(ticker)
+  const price  = snap.close
+  const rsi    = snap.rsi ?? 50
+  const bbPos  = snap.bbPosition ?? 0.5
 
-  // 지표 판정 분기
-  if (rsi < 30 || bbPos < 0.15) {
-    // 1. 과매도 / 볼린저 밴드 하단 근접 (강력 매수 신호)
-    signal = 'strong_buy'
-    summary = `현재 ${ticker} 종목은 RSI(${rsi.toFixed(1)}) 지표가 심각한 과매도 상태이며 주가가 볼린저 밴드 하단에 인접해 있습니다. 기술적 과매도로 인한 저가 매수 유입 가능성이 매우 높습니다.`
-    buyType = 'split'
+  // ── 지표별 점수 (총합 -7 ~ +7) ────────────────────────────────
+  // RSI: 극단값일수록 ±2, 중간 경계면 ±1
+  const rsiScore =
+    rsi < 30 ? 2 : rsi < 40 ? 1 : rsi > 70 ? -2 : rsi > 60 ? -1 : 0
+
+  // 볼린저 밴드 위치
+  const bbScore =
+    bbPos < 0.15 ? 2 : bbPos < 0.35 ? 1 : bbPos > 0.85 ? -2 : bbPos > 0.65 ? -1 : 0
+
+  // MACD: macd > signal 이고 히스토그램 확장 중이면 +1
+  const macdScore = (() => {
+    if (snap.macd == null || snap.signal == null) return 0
+    if (snap.macd > snap.signal && (snap.histogram ?? 0) > 0) return 1
+    if (snap.macd < snap.signal && (snap.histogram ?? 0) < 0) return -1
+    return 0
+  })()
+
+  // MA 크로스
+  const crossScore =
+    snap.maCrossState === 'golden' ? 1 :
+    snap.maCrossState === 'dead'   ? -1 : 0
+
+  // 거래량: 방향을 증폭만 함 (방향이 없으면 0)
+  const baseScore  = rsiScore + bbScore + macdScore + crossScore
+  const volScore   = (() => {
+    if ((snap.volumeRatio ?? 0) < 1.5) return 0
+    return baseScore > 0 ? 1 : baseScore < 0 ? -1 : 0
+  })()
+
+  const totalScore = baseScore + volScore
+
+  // ── 시그널 결정 ──────────────────────────────────────────────
+  const signal: StrategyResult['signal'] =
+    totalScore >= 5  ? 'strong_buy'  :
+    totalScore >= 3  ? 'buy'         :
+    totalScore <= -5 ? 'strong_sell' :
+    totalScore <= -3 ? 'sell'        : 'watch'
+
+  // ── 가격 유틸 ────────────────────────────────────────────────
+  const r = (v: number) => isKR ? Math.round(v) : Math.round(v * 100) / 100
+
+  // 지지선: MA20 우선 → BB 하단 → 현재가 -5%
+  const support =
+    snap.ma20 != null && snap.ma20 < price ? snap.ma20 :
+    snap.bbLower != null ? snap.bbLower : price * 0.95
+
+  // 저항선: MA60 우선 → BB 상단 → 현재가 +8%
+  const resist =
+    snap.ma60 != null && snap.ma60 > price ? snap.ma60 :
+    snap.bbUpper != null ? snap.bbUpper : price * 1.08
+
+  const ma20Str = snap.ma20 != null
+    ? (isKR ? `${Math.round(snap.ma20).toLocaleString('ko-KR')}원` : `$${snap.ma20.toFixed(2)}`)
+    : '근처'
+  const ma60Str = snap.ma60 != null
+    ? (isKR ? `${Math.round(snap.ma60).toLocaleString('ko-KR')}원` : `$${snap.ma60.toFixed(2)}`)
+    : '근처'
+
+  // ── 시그널 기여 문구 (summary·risks용) ──────────────────────
+  const bullCues: string[] = []
+  const bearCues: string[] = []
+  if (rsiScore  >  0) bullCues.push(`RSI ${rsi.toFixed(1)} 과매도`)
+  if (rsiScore  <  0) bearCues.push(`RSI ${rsi.toFixed(1)} 과매수`)
+  if (bbScore   >  0) bullCues.push('BB 하단 근접')
+  if (bbScore   <  0) bearCues.push('BB 상단 근접')
+  if (macdScore >  0) bullCues.push('MACD 강세 전환')
+  if (macdScore <  0) bearCues.push('MACD 약세 전환')
+  if (crossScore > 0) bullCues.push('골든크로스')
+  if (crossScore < 0) bearCues.push('데드크로스')
+  if (volScore  >  0) bullCues.push('거래량 급증 확인')
+  if (volScore  <  0) bearCues.push('거래량 급증 매도 확인')
+
+  // ── 전략별 세부 결정 ─────────────────────────────────────────
+  let summary: string
+  let entries: StrategyResult['buyStrategy']['entries']
+  let stopLoss: number
+  let stopLossReason: string
+  let targets: StrategyResult['sellStrategy']['targets']
+  let risks: string[]
+
+  if (signal === 'strong_buy') {
+    summary = `${ticker}: ${bullCues.join(' · ')} 동시 발생 — 복수 지표 강한 매수 신호. (종합 점수 ${totalScore}/7)`
     entries = [
-      { price: Math.round(price * 0.99), ratio: 40, reason: '현재가 근처 분할 1차 진입' },
-      { price: Math.round(price * 0.96), ratio: 60, reason: '강력 지지선 부근 비중 확대 진입' }
+      { price: r(price * 0.99),                         ratio: 40, reason: `1차 — ${bullCues[0] ?? 'BB 하단 근접'}` },
+      { price: r(Math.min(price * 0.96, support * 1.01)), ratio: 60, reason: `2차 — MA20(${ma20Str}) 지지 확인 비중 확대` },
     ]
-    stopLoss = Math.round(price * 0.92)
-    stopLossReason = '과매도 이탈 후 추가 하락 시 지지 실패로 판단하여 손절'
+    stopLoss       = r(support * 0.97)
+    stopLossReason = `MA20(${ma20Str}) 하향 이탈 시 추세 전환으로 판단 손절`
     targets = [
-      { price: Math.round(price * 1.07), ratio: 50, reason: '1차 볼린저 밴드 중심선 도달 시 차익실현' },
-      { price: Math.round(price * 1.15), ratio: 50, reason: '2차 상단 저항선 돌파 시 전량 차익실현' }
+      { price: r(price * 1.07),                          ratio: 50, reason: 'BB 중심선 도달 1차 익절' },
+      { price: r(Math.max(resist, price * 1.14)),         ratio: 50, reason: `MA60(${ma60Str}) 저항 돌파 시 전량 익절` },
     ]
     risks = [
-      '하락 추세 지속 시 단기 추가 낙폭 발생 리스크',
-      '거래량 공백으로 인한 매수세 유입 지연 가능성',
-      '글로벌 거시경제 악화에 따른 기술적 반등 무산 리스크'
+      bearCues.length > 0 ? `반대 지표 혼재: ${bearCues.join(', ')}` : '기술적 반등 실패 가능성',
+      (snap.volumeRatio ?? 1) < 0.8 ? '거래량 부족 — 매수세 유입 불확실' : '외부 충격에 따른 지지선 붕괴 리스크',
+      '과매도 구간 진입 후 추가 하락 지속 가능성 (칼날 받기)',
     ]
-  } else if (rsi < 45 || bbPos < 0.35) {
-    // 2. 조정 후 지지 매수
-    signal = 'buy'
-    summary = `주가가 완만한 단기 조정 후 지지 라인을 확보하는 형태입니다. RSI(${rsi.toFixed(1)}) 수준이 낮아 분할 매수로 신규 진입하기에 유리한 국면입니다.`
-    buyType = 'split'
+
+  } else if (signal === 'buy') {
+    summary = `${ticker}: ${bullCues.join(' · ')} 확인 — 단기 조정 후 지지 구간 분할 매수 유효. (종합 점수 ${totalScore}/7)`
     entries = [
-      { price: Math.round(price * 0.98), ratio: 50, reason: '지지선 1차 매수 진입' },
-      { price: Math.round(price * 0.95), ratio: 50, reason: '하방 지지 2차 매수 진입' }
+      { price: r(price * 0.99),                           ratio: 50, reason: `1차 — ${bullCues[0] ?? '현재가 근처'}` },
+      { price: r(Math.min(price * 0.96, support * 1.005)), ratio: 50, reason: `2차 — MA20(${ma20Str}) 지지 후 추가` },
     ]
-    stopLoss = Math.round(price * 0.93)
-    stopLossReason = '주요 매물대 하단선 붕괴에 따른 리스크 차단'
+    stopLoss       = r(support * 0.96)
+    stopLossReason = `MA20(${ma20Str}) 붕괴 시 손절`
     targets = [
-      { price: Math.round(price * 1.06), ratio: 60, reason: '1차 목표 저항 매물대 익절' },
-      { price: Math.round(price * 1.12), ratio: 40, reason: '2차 추세 연장선 상단 익절' }
+      { price: r(price * 1.06),                   ratio: 60, reason: '단기 저항 1차 익절' },
+      { price: r(Math.max(resist, price * 1.12)),  ratio: 40, reason: `MA60(${ma60Str}) 중기 저항 2차 익절` },
     ]
     risks = [
-      '단기 횡보 박스권 장기화에 따른 기회비용 리스크',
-      '지표 개선 흐름의 변동성 발생 우려',
-      '섹터 전반의 기관/외인 동반 매도세 리스크'
+      crossScore < 0 ? '데드크로스 진행 중 — 중기 하락 우려' : '단기 반등 후 재하락 가능성',
+      (snap.volumeRatio ?? 1) < 1.0 ? '거래량 감소 — 상승 지속 불확실' : '매물대 저항에 따른 상승 제한',
+      '섹터 전반 기관·외인 매도세 리스크',
     ]
-  } else if (rsi > 70 || bbPos > 0.85) {
-    // 3. 과매수 / 밴드 상단 이탈 (강력 매도 신호)
-    signal = 'strong_sell'
-    summary = `RSI 지표가 ${rsi.toFixed(1)} 수준으로 단기 과열 양상에 직면했으며 볼린저 밴드 상단 경계를 넘나들고 있습니다. 단기 차익 실현 매물 폭탄의 위험성이 농후합니다.`
-    buyType = 'split'
+
+  } else if (signal === 'strong_sell') {
+    summary = `${ticker}: ${bearCues.join(' · ')} 동시 발생 — 현재 진입 비추천. 큰 폭 하락 후 재진입 대기 권고. (종합 점수 ${totalScore}/7)`
     entries = [
-      { price: Math.round(price * 0.88), ratio: 100, reason: '낙폭 과대 시 20일선 근처에서만 보수적 매수 대기' }
+      { price: r(price * 0.88), ratio: 100, reason: `급락 후 MA60(${ma60Str}) 근처에서만 보수적 재진입 검토` },
     ]
-    stopLoss = Math.round(price * 0.82)
-    stopLossReason = '추세 완전히 이탈 및 붕괴 시 칼손절'
+    stopLoss       = r(price * 0.82)
+    stopLossReason = '추세 완전 이탈 시 즉시 손절'
+    targets        = []
+    risks = [
+      `${bearCues.join(' · ')} — 복수 지표 동시 약세`,
+      (snap.volumeRatio ?? 0) > 1.5 ? '높은 거래량 동반 하락 — 투매 징후' : '고점 매수자 차익 매물 출회 우려',
+      '단기 과열 해소 이후에도 중기 하락 추세 전환 가능성',
+    ]
+
+  } else if (signal === 'sell') {
+    summary = `${ticker}: ${bearCues.join(' · ')} — 현재 진입 비추천. 조정 대기 후 매수 검토. (종합 점수 ${totalScore}/7)`
+    entries = [
+      { price: r(price * 0.93), ratio: 100, reason: `조정 후 MA20(${ma20Str}) 지지 확인 시 재진입` },
+    ]
+    stopLoss       = r(price * 0.87)
+    stopLossReason = `MA20(${ma20Str}) 붕괴 시 추가 하락 대비 손절`
     targets = [
-      { price: Math.round(price * 1.02), ratio: 100, reason: '현재 구간에서 적극적인 비중 축소 및 전량 익절 권장' }
+      { price: r(price * 1.04), ratio: 50, reason: '보유 포지션 1차 비중 축소' },
+      { price: r(price * 1.08), ratio: 50, reason: '오버슈팅 시 잔여 전량 익절' },
     ]
     risks = [
-      '단기 추세 꺾임 시 매도 물량 급증에 따른 투매 리스크',
-      '고점 매수자들의 차익 매물 대거 출회 우려',
-      '신규 진입 시 뇌동매매에 따른 고점 물리 가능성 매우 높음'
+      crossScore < 0 ? '데드크로스 형성 — 하락 추세 가속 가능' : '상승 모멘텀 둔화 징후',
+      `RSI ${rsi.toFixed(1)} — 고평가 구간 진입`,
+      '수급 약화 시 빠른 조정 가능성',
     ]
-  } else if (rsi > 58 || bbPos > 0.65) {
-    // 4. 상승 모멘텀 유지 중 일부 비중 축소 권장
-    signal = 'sell'
-    summary = `주가가 견조한 상승세를 유지하고 있으나, RSI(${rsi.toFixed(1)}) 지표 상 점차 매수 세력이 약화되는 과열 권역에 진입하고 있어 분할 매도를 시작할 타이밍입니다.`
-    buyType = 'split'
-    entries = [
-      { price: Math.round(price * 0.92), ratio: 100, reason: '조정 시 지지선 확인 후 보수적 접근' }
-    ]
-    stopLoss = Math.round(price * 0.87)
-    stopLossReason = '지지 라인 붕괴 시 추세 이탈로 판단'
-    targets = [
-      { price: Math.round(price * 1.04), ratio: 50, reason: '직전 최고점 저항 돌파 실패 시 분할 익절' },
-      { price: Math.round(price * 1.08), ratio: 50, reason: '추가 오버슈팅 시 남은 비중 전량 익절' }
-    ]
-    risks = [
-      '단기 고점 형성 후 차익 매물 출회에 따른 조정 위험',
-      '최근 가팔랐던 거래량 상승 탄력 둔화 우려',
-      '외국인 순매수세 둔화에 따른 상승동력 상실'
-    ]
+
   } else {
-    // 5. 방향성 탐색 구간 (관망)
-    signal = 'watch'
-    summary = `현재 ${ticker} 종목은 특별한 모멘텀 없이 박스권 횡보 양상을 띠고 있습니다. RSI(${rsi.toFixed(1)}) 수치가 50선 근방에 위치하여 방향성 돌파 여부 확인이 선행되어야 합니다.`
-    buyType = 'split'
+    // watch
+    const mixed = bullCues.length > 0 && bearCues.length > 0
+    summary = mixed
+      ? `${ticker}: ${bullCues.join(' · ')} vs ${bearCues.join(' · ')} 혼재 — 방향성 확인 후 진입 권고. (종합 점수 ${totalScore}/7)`
+      : `${ticker}: RSI ${rsi.toFixed(1)}, BB 중간 구간. 특별한 방향성 신호 없음 — 추세 돌파 확인 후 진입 권고.`
     entries = [
-      { price: Math.round(price * 0.96), ratio: 50, reason: '박스권 하단 지지 확인 시 매수 진입' },
-      { price: Math.round(price * 0.93), ratio: 50, reason: '하방 지지 2차 매수 진입' }
+      { price: r(Math.min(price * 0.97, support * 1.01)),  ratio: 50, reason: `MA20(${ma20Str}) 지지 확인 시 1차 진입` },
+      { price: r(Math.min(price * 0.94, support * 0.98)),  ratio: 50, reason: '하방 2차 분할 진입' },
     ]
-    stopLoss = Math.round(price * 0.89)
-    stopLossReason = '박스권 하향 돌파 시 추가 하락 리스크 관리용 손절'
+    stopLoss       = r(support * 0.95)
+    stopLossReason = `박스권 하향 이탈 및 MA20(${ma20Str}) 붕괴 시 손절`
     targets = [
-      { price: Math.round(price * 1.04), ratio: 50, reason: '박스권 상단 저항선 1차 익절' },
-      { price: Math.round(price * 1.09), ratio: 50, reason: '박스권 돌파 후 추가 상승 마디가 2차 익절' }
+      { price: r(Math.max(price * 1.04, resist * 0.97)), ratio: 50, reason: '박스권 상단 1차 익절' },
+      { price: r(Math.max(price * 1.09, resist)),        ratio: 50, reason: `MA60(${ma60Str}) 저항선 돌파 시 2차 익절` },
     ]
     risks = [
-      '방향성 부재에 따른 지루한 시간 횡보 기회비용 리스크',
-      '박스권 위아래 변동폭 축소에 따른 단기 트레이딩 마진 감소',
-      '시장 수급 관망세 집중으로 거래량 침체 장기화'
+      '방향성 미결 — 상하단 모두 진입 가능성',
+      (snap.volumeRatio ?? 1) < 0.8 ? '거래량 부족 — 돌파 신뢰도 낮음' : '거래량 평이 — 강한 모멘텀 부재',
+      macdScore === 0 ? 'MACD 신호 불명확 — 추가 관망 필요' : '지표 혼조로 전략 판단 어려움',
     ]
   }
 
@@ -356,20 +499,12 @@ function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapshot): Str
     generatedAt: new Date().toISOString(),
     summary,
     signal,
-    buyStrategy: {
-      type: buyType,
-      entries,
-      stopLoss,
-      stopLossReason
-    },
-    sellStrategy: {
-      targets
-    },
+    buyStrategy: { type: 'split', entries, stopLoss, stopLossReason },
+    sellStrategy: { targets },
     risks,
-    rawText: `[폴백 모드 활성화 - 규칙 기반 엔진]
-* 원인: Gemini API 미연동 또는 API 오류
-* 진단: RSI: ${rsi.toFixed(2)}, Bollinger Position: ${(bbPos * 100).toFixed(1)}%
-* 판정 결과: ${signal.toUpperCase()} 전략 수립 완료.`
+    rawText: `[폴백 모드 — 규칙 기반 엔진]
+점수: RSI ${rsiScore} + BB ${bbScore} + MACD ${macdScore} + MA크로스 ${crossScore} + 거래량 ${volScore} = 종합 ${totalScore}/7
+판정: ${signal.toUpperCase()}`,
   }
 }
 
@@ -414,9 +549,12 @@ export async function POST(req: NextRequest) {
       throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
     }
 
-    // 4. 뉴스 + 프롬프트 조립 (뉴스 실패해도 분석 계속)
-    const news   = await fetchYahooNews(ticker)
-    const prompt = buildPrompt(ticker, snap, news)
+    // 4. 뉴스 + 실적 병렬 fetch → 프롬프트 조립 (실패해도 분석 계속)
+    const [news, earnings] = await Promise.all([
+      fetchYahooNews(ticker),
+      fetchEarnings(ticker),
+    ])
+    const prompt = buildPrompt(ticker, snap, news, earnings)
 
     // 5. Gemini REST API 호출
     const response = await fetch(

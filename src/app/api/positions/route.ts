@@ -45,6 +45,33 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(newPos, { status: 201 })
 }
 
+// 포지션 최신화 (기존 active 포지션에 새 전략 덮어쓰기)
+export async function PATCH(req: NextRequest) {
+  const body = await req.json()
+  const { id, strategy } = body
+  if (!id || !strategy) return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 })
+
+  const positions = await readDB()
+  const idx = positions.findIndex(p => p.id === id && p.status === 'active')
+  if (idx === -1) return NextResponse.json({ error: '활성 포지션 없음' }, { status: 404 })
+
+  positions[idx] = {
+    ...positions[idx],
+    registeredAt:   new Date().toISOString(),
+    signal:         strategy.signal,
+    summary:        strategy.summary,
+    entryType:      strategy.buyStrategy.type,
+    entries:        strategy.buyStrategy.entries,
+    stopLoss:       strategy.buyStrategy.stopLoss,
+    stopLossReason: strategy.buyStrategy.stopLossReason,
+    targets:        strategy.sellStrategy.targets,
+    risks:          strategy.risks,
+  }
+
+  await writeDB(positions)
+  return NextResponse.json(positions[idx])
+}
+
 // 포지션 종료 (논리 삭제)
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
