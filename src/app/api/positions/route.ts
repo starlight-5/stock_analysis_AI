@@ -5,6 +5,48 @@ import type { Position } from '@/types/stock'
 
 const DB_PATH = path.join(process.cwd(), 'data', 'positions.json')
 
+const IS_KR = (t: string) => /^\d{6}$/.test(t)
+const fmtPrice = (ticker: string, p: number) =>
+  IS_KR(ticker)
+    ? `${p.toLocaleString('ko-KR')}원`
+    : `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const SIGNAL_EMOJI: Record<string, string> = {
+  strong_buy: '🟢', buy: '🟢', watch: '🟡', sell: '🔴', strong_sell: '🔴',
+}
+const SIGNAL_LABEL: Record<string, string> = {
+  strong_buy: '강력매수', buy: '매수', watch: '관망', sell: '매도', strong_sell: '강력매도',
+}
+
+function sendNewPositionAlert(pos: Position) {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL
+  if (!webhookUrl) return
+
+  const em  = SIGNAL_EMOJI[pos.signal] ?? '⚪'
+  const sig = SIGNAL_LABEL[pos.signal] ?? pos.signal
+
+  const entryLine = pos.entryType === 'lump'
+    ? `일괄 ${fmtPrice(pos.ticker, pos.entries[0]?.price ?? 0)}`
+    : pos.entries.map((e, i) => `${i + 1}차 ${fmtPrice(pos.ticker, e.price)} (${e.ratio}%)`).join(' / ')
+
+  const targetLine = pos.targets
+    .map((t, i) => `${i + 1}차 ${fmtPrice(pos.ticker, t.price)}`)
+    .join(' · ')
+
+  const lines = [
+    `${em} **새 포지션 등록** | ${pos.ticker} · ${pos.name}  \`${sig}\``,
+    `진입: ${entryLine}`,
+    `목표: ${targetLine}`,
+    `손절: ${fmtPrice(pos.ticker, pos.stopLoss)}`,
+  ]
+
+  fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: lines.join('\n') }),
+  }).catch(() => {})
+}
+
 async function readDB(): Promise<Position[]> {
   try { return JSON.parse(await fs.readFile(DB_PATH, 'utf-8')) } catch { return [] }
 }
@@ -42,6 +84,7 @@ export async function POST(req: NextRequest) {
 
   positions.push(newPos)
   await writeDB(positions)
+  sendNewPositionAlert(newPos)
   return NextResponse.json(newPos, { status: 201 })
 }
 
