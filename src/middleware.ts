@@ -1,4 +1,10 @@
-export { default } from 'next-auth/middleware'
+import { withAuth } from 'next-auth/middleware'
+
+export default withAuth({
+  callbacks: {
+    authorized: ({ token }) => !!token,
+  },
+})
 
 export const config = {
   // API 라우트는 각 핸들러가 직접 401 반환, 페이지만 보호
