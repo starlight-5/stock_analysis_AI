@@ -38,11 +38,14 @@ export async function DELETE(req: Request) {
 
   if (target.email) {
     const bannedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    await prisma.bannedEmail.upsert({
-      where:  { email: target.email },
-      create: { email: target.email, bannedUntil },
-      update: { bannedUntil },
-    })
+    await Promise.all([
+      prisma.bannedEmail.upsert({
+        where:  { email: target.email },
+        create: { email: target.email, bannedUntil },
+        update: { bannedUntil },
+      }),
+      prisma.accessRequest.deleteMany({ where: { email: target.email } }),
+    ])
   }
 
   await prisma.user.delete({ where: { id: userId } })
