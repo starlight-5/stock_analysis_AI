@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
+import AuthGuard from '@/components/AuthGuard'
 import type { WatchlistItem } from '@/types/stock'
 import type { RankingItem } from './api/rankings/route'
 import type { QuoteData } from './api/quotes/route'
@@ -846,6 +847,7 @@ export default function HomePage() {
   }, [])
 
   return (
+    <AuthGuard>
     <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 60, paddingTop: 48 }}>
 
       {/* ── 시장 상태 바 ── */}
@@ -1212,5 +1214,6 @@ export default function HomePage() {
 
       </main>
     </div>
+    </AuthGuard>
   )
 }

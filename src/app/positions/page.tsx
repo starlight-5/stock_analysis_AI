@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
+import AuthGuard from '@/components/AuthGuard'
 import type { Position } from '@/types/stock'
 
 // ─── 유틸 ────────────────────────────────────────────────────────
@@ -290,6 +291,7 @@ export default function PositionsPage() {
   const closed = positions.filter(p => p.status === 'closed')
 
   return (
+    <AuthGuard>
     <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', paddingBottom: 60, paddingTop: 48 }}>
 
       {/* 헤더 */}
@@ -386,5 +388,6 @@ export default function PositionsPage() {
         )}
       </main>
     </div>
+    </AuthGuard>
   )
 }
