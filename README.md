@@ -255,6 +255,17 @@ npm run dev
 
 ---
 
+## ⚠️ 법적 고지 (Disclaimer)
+
+본 프로젝트는 **순수 개인 학습 및 참고 목적**으로 제작된 비상업적 도구입니다.
+
+- 이 서비스가 제공하는 AI 분석·매매 전략·지표는 **투자 권유 또는 금융 조언이 아닙니다.**
+- 모든 투자 결정과 그에 따른 손익은 **전적으로 사용자 본인의 책임**입니다.
+- AI 분석 결과는 과거 데이터와 기술적 지표를 기반으로 한 참고 자료이며, **미래 수익을 보장하지 않습니다.**
+- 주식 투자에는 원금 손실 위험이 있으며, 투자 전 **본인의 투자 성향과 리스크를 반드시 고려**하시기 바랍니다.
+
+---
+
 ## 참고 & 도움받은 곳
 
 - [Yahoo Finance API (비공식 문서)](https://github.com/gadicc/node-yahoo-finance2)
@@ -264,3 +275,4 @@ npm run dev
 - [NextAuth.js v4 Docs](https://next-auth.js.org/)
 - [Supabase Docs](https://supabase.com/docs)
 - 토스 디자인 시스템 (UI 참고)
+
