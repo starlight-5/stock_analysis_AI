@@ -59,7 +59,7 @@ function toPosition(row: Record<string, unknown>): Position {
     registeredAt:   (row.registeredAt as Date).toISOString(),
     signal:         row.signal as Position['signal'],
     summary:        row.summary as string,
-    entryType:      row.entryType as string,
+    entryType:      row.entryType as 'lump' | 'split',
     entries:        row.entries as Position['entries'],
     stopLoss:       row.stopLoss as number,
     stopLossReason: row.stopLossReason as string,
