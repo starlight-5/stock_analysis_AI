@@ -1,23 +1,26 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 
 export default function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
+  const { status } = useSession()
   const [activeCount, setActiveCount] = useState(0)
 
   useEffect(() => {
+    if (status !== 'authenticated') return
     fetch('/api/positions')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setActiveCount(data.filter((p: any) => p.status === 'active').length)
+          setActiveCount(data.filter((p: { status: string }) => p.status === 'active').length)
         }
       })
       .catch(() => {})
-  }, [pathname])
+  }, [pathname, status])
 
   const tabs = [
     { path: '/',          label: '홈',      icon: '⌂'  },
