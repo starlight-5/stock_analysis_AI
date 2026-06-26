@@ -101,6 +101,15 @@ model BannedEmail {
   bannedUntil DateTime
 }
 
+// ─── KIS 토큰 캐시 (Vercel 인스턴스 간 공유) ─────────────────────
+
+model KisTokenCache {
+  id        String   @id @default("kis_token")
+  token     String   @db.Text
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+}
+
 // ─── 관심종목 ─────────────────────────────────────────────────────
 
 model WatchlistItem {
