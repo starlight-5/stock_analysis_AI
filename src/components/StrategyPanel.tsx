@@ -186,8 +186,11 @@ export default function StrategyPanel({ ticker, name, strategy, snapshot, isLoad
       {/* 헤더 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>AI 매매 전략</div>
-          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>Gemini AI 분석</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{ticker}</span>
+            {name && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{name}</span>}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>AI 매매 전략 · Gemini 분석</div>
         </div>
         <button
           onClick={onAnalyze}

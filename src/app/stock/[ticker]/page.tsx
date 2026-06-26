@@ -222,6 +222,7 @@ export default function StockDetailPage() {
           {/* 전략 패널 */}
           <StrategyPanel
             ticker={ticker}
+            name={stockName || undefined}
             strategy={strategy}
             snapshot={snapshot}
             isLoading={analyzing}
