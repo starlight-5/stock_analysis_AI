@@ -102,6 +102,7 @@ async function fetchKR(): Promise<RankingItem[]> {
   if (json.rt_cd !== '0') throw new Error(`한투 API 오류: ${json.msg1}`)
 
   const output: any[] = json.output ?? []
+  if (output.length > 0) console.log('[rankings] mksc_shrn_iscd 샘플:', output.slice(0, 3).map((r: any) => r.mksc_shrn_iscd))
 
   const data: RankingItem[] = output.map((row: any) => {
     const price    = parseInt(row.stck_prpr     ?? '0', 10)

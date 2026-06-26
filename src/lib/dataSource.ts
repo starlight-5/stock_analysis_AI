@@ -49,12 +49,10 @@ async function fetchFromAlpaca(ticker: string): Promise<OHLCVBar[]> {
     .sort((a: any, b: any) => a.date.localeCompare(b.date))
 }
 
-// ─── 2. 한국투자증권 (국내 6자리 종목코드 전용) ───────────────────
+// ─── 2. 한국투자증권 (국내 6자리 종목코드 — 숫자·알파뉴메릭 모두) ─
 // tr_id: FHKST03010100 (실전·모의 동일)
 // 1회 최대 100건 → 120일 확보를 위해 2회 호출 (페이지네이션)
 async function fetchFromKoreaInvestment(ticker: string): Promise<OHLCVBar[]> {
-  if (!/^\d{6}$/.test(ticker))
-    throw new Error(`한투 API는 국내 6자리 종목코드 전용 (입력: ${ticker})`)
 
   const token = await getKIToken()
 
@@ -130,7 +128,8 @@ async function fetchFromKoreaInvestment(ticker: string): Promise<OHLCVBar[]> {
 // ─── 종목명 조회 (Yahoo Finance) ─────────────────────────────────
 async function fetchStockName(ticker: string): Promise<string | undefined> {
   try {
-    const symbol = /^\d{6}$/.test(ticker) ? `${ticker}.KS` : ticker
+    const isKr = ticker.length === 6 && /^\d/.test(ticker) && /^[A-Z0-9]+$/i.test(ticker)
+    const symbol = isKr ? `${ticker}.KS` : ticker
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
       { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
@@ -149,7 +148,8 @@ export async function fetchStockData(ticker: string): Promise<StockDataResult> {
   const cached = getCached(cacheKey)
   if (cached) return cached
 
-  const isKorean = /^\d{6}$/.test(ticker)
+  // 6자리이고 숫자로 시작하면 한국 시장 종목으로 판단 (순수 숫자 + 알파뉴메릭 모두)
+  const isKorean = ticker.length === 6 && /^\d/.test(ticker) && /^[A-Z0-9]+$/i.test(ticker)
   let bars: OHLCVBar[]
   let source: DataSource
 
