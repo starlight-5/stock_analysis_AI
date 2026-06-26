@@ -234,6 +234,7 @@ ${etfLines}
 규칙:
 - sectors 배열: 입력 순서 그대로 ${top3.length}개
 - 각 섹터당 미국 주식 3종목 + 한국 관련주 1-2종목 (없으면 US만)
+- 한국 종목(market=KR)의 ticker는 반드시 6자리 숫자 종목코드 사용 (예: "005930", "000660"). ETF 이름이나 한글 이름 절대 금지.
 - hotness: 1개월 평균 +8% 이상=hot, +3~8%=rising, 그 미만=cooling
 - description은 최신 뉴스·실적·정책 기반으로 구체적으로 작성
 - yearTimeline은 실제 글로벌 시장에서 주도한 투자 테마를 정확히 반영`
@@ -269,12 +270,16 @@ ${etfLines}
       sectorEmoji: perf.emoji,
       hotness:     s.hotness ?? 'rising',
       description: s.description ?? '',
-      stocks: (s.stocks ?? []).map((st: any) => ({
-        ticker: st.ticker ?? '',
-        name:   st.name ?? st.ticker ?? '',
-        market: st.market === 'KR' ? 'KR' : 'US',
-        reason: st.reason ?? '',
-      })),
+      stocks: (s.stocks ?? [])
+        .map((st: any) => ({
+          ticker: st.ticker ?? '',
+          name:   st.name ?? st.ticker ?? '',
+          market: st.market === 'KR' ? 'KR' : 'US',
+          reason: st.reason ?? '',
+        }))
+        .filter((st: any) =>
+          st.market === 'KR' ? /^\d{6}$/.test(st.ticker) : st.ticker.length > 0
+        ),
     }
   })
 
