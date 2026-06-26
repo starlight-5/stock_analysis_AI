@@ -49,7 +49,7 @@ function usePositions() {
       } catch {}
     }
     doFetch()
-    const id = setInterval(doFetch, 10 * 60 * 1000)
+    const id = setInterval(doFetch, 5 * 60 * 1000)
     return () => clearInterval(id)
   }, [positions])
 
