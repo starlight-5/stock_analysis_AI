@@ -277,9 +277,11 @@ ${etfLines}
           market: st.market === 'KR' ? 'KR' : 'US',
           reason: st.reason ?? '',
         }))
-        .filter((st: any) =>
-          st.market === 'KR' ? /^\d{6}$/.test(st.ticker) : st.ticker.length > 0
-        ),
+        .filter((st: any) => {
+          if (/[가-힣]/.test(st.ticker)) return false   // 한글 포함 ticker 전부 제거
+          if (st.market === 'KR') return /^\d{6}$/.test(st.ticker)
+          return st.ticker.length > 0
+        }),
     }
   })
 
