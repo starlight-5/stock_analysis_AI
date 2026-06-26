@@ -49,6 +49,8 @@ function usePositions() {
       } catch {}
     }
     doFetch()
+    const id = setInterval(doFetch, 10 * 60 * 1000)
+    return () => clearInterval(id)
   }, [positions])
 
   const close = useCallback(async (id: string) => {

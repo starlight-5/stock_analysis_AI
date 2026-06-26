@@ -6,7 +6,7 @@ export type QuoteData = {
   changePct: number
 }
 
-const CACHE_TTL = 5 * 60 * 1000
+const CACHE_TTL = 0  // 현재가는 캐시하지 않음
 ;(globalThis as any).__quoteCache = new Map()
 const quoteCache: Map<string, { data: QuoteData; exp: number }> = (globalThis as any).__quoteCache
 

@@ -212,7 +212,8 @@ function useWatchlistData(tickers: string[]) {
       } catch {}
     }
     doFetch()
-    return () => ctrl.abort()
+    const id = setInterval(doFetch, 10 * 60 * 1000)
+    return () => { ctrl.abort(); clearInterval(id) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 

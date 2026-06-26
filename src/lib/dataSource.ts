@@ -8,7 +8,7 @@ const ALPACA_SECRET = process.env.ALPACA_SECRET_KEY ?? ''
 ;(globalThis as any).__stockCache ??= new Map()
 const cache: Map<string, { data: StockDataResult; expiresAt: number }> =
   (globalThis as any).__stockCache
-const CACHE_TTL_MS = 10 * 60 * 1000
+const CACHE_TTL_MS = 0  // 현재가는 캐시하지 않음
 
 function getCached(key: string): StockDataResult | null {
   const entry = cache.get(key)

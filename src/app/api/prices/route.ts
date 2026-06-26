@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getKIToken, KI_BASE, KI_KEY, KI_SECRET } from '@/lib/kisToken'
 import type { ExtInfo, PriceData } from '@/types/price'
 
-const CACHE_TTL = 5 * 60 * 1000
+const CACHE_TTL = 0  // 현재가는 캐시하지 않음
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
 
 ;(globalThis as any).__priceCache2 ??= new Map()
