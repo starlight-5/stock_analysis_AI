@@ -127,8 +127,23 @@ async function fetchFromKoreaInvestment(ticker: string): Promise<OHLCVBar[]> {
   return bars
 }
 
+// ─── 종목명 조회 (Yahoo Finance) ─────────────────────────────────
+async function fetchStockName(ticker: string): Promise<string | undefined> {
+  try {
+    const symbol = /^\d{6}$/.test(ticker) ? `${ticker}.KS` : ticker
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
+    )
+    const json = await res.json()
+    const meta = json.chart?.result?.[0]?.meta
+    return meta?.shortName ?? meta?.longName ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 // ─── 퍼블릭 진입점 ───────────────────────────────────────────────
-// mock 폴백 제거 — API 실패 시 에러를 그대로 던짐
 export async function fetchStockData(ticker: string): Promise<StockDataResult> {
   const cacheKey = `stock:${ticker}`
   const cached = getCached(cacheKey)
@@ -139,14 +154,15 @@ export async function fetchStockData(ticker: string): Promise<StockDataResult> {
   let source: DataSource
 
   if (isKorean) {
-    bars   = await fetchFromKoreaInvestment(ticker) // 실패 시 throw
+    bars   = await fetchFromKoreaInvestment(ticker)
     source = 'korea_investment'
   } else {
-    bars   = await fetchFromAlpaca(ticker)          // 실패 시 throw
+    bars   = await fetchFromAlpaca(ticker)
     source = 'alpaca'
   }
 
-  const result: StockDataResult = { ticker, bars, source, fetchedAt: new Date().toISOString() }
+  const name   = await fetchStockName(ticker)
+  const result: StockDataResult = { ticker, name, bars, source, fetchedAt: new Date().toISOString() }
   setCache(cacheKey, result)
   return result
 }

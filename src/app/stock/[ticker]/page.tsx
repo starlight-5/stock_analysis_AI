@@ -47,6 +47,7 @@ export default function StockDetailPage() {
 
   const [bars, setBars]               = useState<OHLCVBar[]>([])
   const [indicators, setInd]          = useState<Indicators | null>(null)
+  const [stockName, setStockName]     = useState<string>('')
   const [dataSource, setSource]       = useState<string>('')
   const [loadingData, setLoadingData] = useState(true)
   const [dataError, setDataError]     = useState<string | null>(null)
@@ -71,6 +72,7 @@ export default function StockDetailPage() {
         setBars(data.bars)
         setInd(data.indicators)
         setSource(data.source)
+        if (data.name) setStockName(data.name)
       })
       .catch((e) => setDataError(e.message))
       .finally(() => setLoadingData(false))
@@ -125,7 +127,10 @@ export default function StockDetailPage() {
           <a href="/" style={{ color: 'var(--color-text-secondary)', fontSize: 13, textDecoration: 'none' }}>
             ← 목록
           </a>
-          <span style={{ fontSize: 16, fontWeight: 500 }}>{ticker}</span>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>{ticker}</span>
+          {stockName && (
+            <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{stockName}</span>
+          )}
           {dataSource && (
             <span style={{
               fontSize: 11, padding: '2px 8px', borderRadius: 10,

@@ -11,10 +11,11 @@ export async function GET(req: NextRequest) {
     const indicators = calcIndicators(result.bars)
 
     return NextResponse.json({
-      ticker: result.ticker,
-      bars: result.bars,
+      ticker:    result.ticker,
+      name:      result.name,
+      bars:      result.bars,
       indicators,
-      source: result.source,
+      source:    result.source,
       fetchedAt: result.fetchedAt,
     })
   } catch (e: any) {
