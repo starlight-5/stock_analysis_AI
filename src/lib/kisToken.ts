@@ -1,10 +1,9 @@
 /**
  * 한국투자증권 토큰 관리 — 전역 싱글턴
  *
- * dataSource.ts / rankings/route.ts 양쪽에서 import해 사용.
- * globalThis에 저장하므로:
- *   - Next.js 핫 리로드 후에도 토큰이 유지됨 (EGW00133 rate limit 방지)
- *   - 동시 요청이 여러 개 와도 promise를 공유해 실제 HTTP 요청은 1회만 발생
+ * - softExp: expires_in - 60s (정상 만료 기준)
+ * - hardExp: expires_in 그대로 (실제 API 만료)
+ * - EGW00133 rate limit 수신 시: hardExp 내면 기존 토큰 재사용, backoff 60s 설정
  */
 
 const KI_KEY    = process.env.KOREA_INVESTMENT_API_KEY    ?? ''
@@ -17,26 +16,37 @@ export const KI_BASE = KI_IS_MOCK
 
 export { KI_KEY, KI_SECRET }
 
-// 캐싱된 토큰 (globalThis → 핫 리로드 무관하게 프로세스 수명 동안 유지)
-;(globalThis as any).__kiToken      ??= null  // { token: string; exp: number } | null
-// 진행 중인 발급 요청 (동시 요청 시 동일 promise 반환 → HTTP 요청 1회 보장)
-;(globalThis as any).__kiTokenFetch ??= null  // Promise<string> | null
+type KiTokenEntry = { token: string; softExp: number; hardExp: number }
+const g = globalThis as unknown as {
+  __kiToken:      KiTokenEntry | null
+  __kiTokenFetch: Promise<string> | null
+  __kiBackoff:    number
+}
+
+g.__kiToken      ??= null
+g.__kiTokenFetch ??= null
+g.__kiBackoff    ??= 0
 
 export async function getKIToken(): Promise<string> {
   if (!KI_KEY || !KI_SECRET) throw new Error(
     'KOREA_INVESTMENT 키 미설정 — .env.local 에 KOREA_INVESTMENT_API_KEY / KOREA_INVESTMENT_API_SECRET 추가 필요'
   )
 
-  // 유효한 캐시가 있으면 즉시 반환
-  const cached: { token: string; exp: number } | null = (globalThis as any).__kiToken
-  if (cached && Date.now() < cached.exp) return cached.token
+  const now = Date.now()
 
-  // 이미 발급 중인 요청이 있으면 그 promise를 공유 (중복 발급 방지)
-  if ((globalThis as any).__kiTokenFetch) {
-    return (globalThis as any).__kiTokenFetch as Promise<string>
+  // 1. softExp 내 → 즉시 반환
+  if (g.__kiToken && now < g.__kiToken.softExp) return g.__kiToken.token
+
+  // 2. backoff 중 → hardExp 내면 기존 토큰 재사용, 아니면 에러
+  if (now < g.__kiBackoff) {
+    if (g.__kiToken && now < g.__kiToken.hardExp) return g.__kiToken.token
+    throw new Error('한국투자증권 토큰 rate limit — 잠시 후 다시 시도해주세요')
   }
 
-  // 새 발급 요청 시작 — 동기적으로 globalThis에 등록 후 await (race condition 방지)
+  // 3. 발급 중인 요청이 있으면 공유
+  if (g.__kiTokenFetch) return g.__kiTokenFetch
+
+  // 4. 새 발급 요청
   const p: Promise<string> = (async () => {
     const res = await fetch(`${KI_BASE}/oauth2/tokenP`, {
       method: 'POST',
@@ -44,26 +54,26 @@ export async function getKIToken(): Promise<string> {
       body: JSON.stringify({ grant_type: 'client_credentials', appkey: KI_KEY, appsecret: KI_SECRET }),
     })
 
+    // EGW00133: rate limit → backoff 60s, 기존 토큰이 hardExp 내면 재사용
     if (!res.ok) {
-      let detail = ''
-      try { detail = ` — ${JSON.stringify(await res.json())}` } catch {}
-      ;(globalThis as any).__kiToken = null
-      throw new Error(`한투 토큰 HTTP ${res.status}${detail}`)
+      let body: Record<string, string> = {}
+      try { body = await res.json() } catch {}
+      if (body.error_code === 'EGW00133') {
+        g.__kiBackoff = now + 62_000
+        if (g.__kiToken && now < g.__kiToken.hardExp) return g.__kiToken.token
+      }
+      throw new Error(`한투 토큰 HTTP ${res.status} — ${JSON.stringify(body)}`)
     }
 
     const json = await res.json()
-    if (!json.access_token) {
-      throw new Error(`한투 토큰 응답에 access_token 없음: ${JSON.stringify(json)}`)
-    }
+    if (!json.access_token) throw new Error(`한투 토큰 응답에 access_token 없음: ${JSON.stringify(json)}`)
 
-    const entry = { token: json.access_token, exp: Date.now() + (json.expires_in - 60) * 1000 }
-    ;(globalThis as any).__kiToken = entry
-    return entry.token
-  })().finally(() => {
-    // 성공/실패 모두 in-flight promise 해제
-    ;(globalThis as any).__kiTokenFetch = null
-  })
+    const expiresMs = (json.expires_in ?? 86400) * 1000
+    g.__kiToken  = { token: json.access_token, softExp: now + expiresMs - 60_000, hardExp: now + expiresMs }
+    g.__kiBackoff = 0
+    return g.__kiToken.token
+  })().finally(() => { g.__kiTokenFetch = null })
 
-  ;(globalThis as any).__kiTokenFetch = p
+  g.__kiTokenFetch = p
   return p
 }
