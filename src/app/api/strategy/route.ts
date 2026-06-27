@@ -247,7 +247,13 @@ ${earningsSection}
     - strong_buy/buy: 모든 targets price > 현재가 ${fmtPrice(currentPrice)}
     - sell/strong_sell: targets는 빈 배열([])로 작성 가능
 11. 분할 매수 간격: split 시 각 entries 진입가 간격 최소 2% 이상 차이 (예: 1차 ${fmtPrice(currentPrice)} → 2차는 최소 ${fmtPrice(currentPrice != null ? currentPrice * 0.98 : null)} 이하)
-12. 실적 발표 반영 규칙:
+12. 진입가 vs 손절선 일관성 (반드시 준수):
+    - 모든 entries의 price는 반드시 stopLoss보다 높아야 함
+    - 진입가 ≤ 손절선인 경우는 "매수 즉시 손절" 이므로 절대 금지
+    - 손절선은 가장 낮은 진입가보다 최소 1% 이상 낮게 설정할 것
+      예시 (O): 2차 진입가 ${fmtPrice(snap.ma20)} → 손절선 ${fmtPrice(snap.ma20 != null ? snap.ma20 * 0.98 : null)}
+      예시 (X): 2차 진입가 ${fmtPrice(snap.ma20)} → 손절선 ${fmtPrice(snap.ma20)} (동일 금지)
+13. 실적 발표 반영 규칙:
     - 다음 실적 발표일이 2주 이내면 risks에 "실적 발표 이벤트 리스크 — [날짜]" 반드시 포함
     - 최근 EPS 서프라이즈가 연속 2회 이상 +10% 초과 시 signal 상향 가중 가능
     - 최근 EPS 서프라이즈가 -10% 이하 발생 시 signal 하향 가중 및 risks에 포함
@@ -310,14 +316,19 @@ function parseStrategyResponse(
     generatedAt: new Date().toISOString(),
     summary: parsed.summary ?? '주식 기술 지표 요약 제공 불가.',
     signal: parsed.signal ?? 'watch',
-    buyStrategy: {
-      type: parsed.buyStrategy?.type ?? 'split',
-      entries: (parsed.buyStrategy?.entries ?? [])
+    buyStrategy: (() => {
+      const stopLoss = sanitizePrice(parsed.buyStrategy?.stopLoss)
+      const entries = (parsed.buyStrategy?.entries ?? [])
         .map((e: any) => ({ ...e, price: sanitizePrice(e.price) }))
-        .sort((a: any, b: any) => b.price - a.price),
-      stopLoss: sanitizePrice(parsed.buyStrategy?.stopLoss),
-      stopLossReason: parsed.buyStrategy?.stopLossReason ?? '리스크 한도 초과 시 손절',
-    },
+        .filter((e: any) => e.price > stopLoss)  // 진입가 ≤ 손절선인 항목 제거
+        .sort((a: any, b: any) => b.price - a.price)
+      return {
+        type: parsed.buyStrategy?.type ?? 'split',
+        entries,
+        stopLoss,
+        stopLossReason: parsed.buyStrategy?.stopLossReason ?? '리스크 한도 초과 시 손절',
+      }
+    })(),
     sellStrategy: {
       targets: (parsed.sellStrategy?.targets ?? [])
         .map((t: any) => ({ ...t, price: sanitizePrice(t.price) }))
