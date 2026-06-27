@@ -156,9 +156,12 @@ export function calcMA(closes: number[]): Indicators['ma'] {
 /** 연율화 역사적 변동성: 최근 period일 로그수익률의 표준편차 × √252 × 100 (%) */
 function calcHV(bars: OHLCVBar[], period: number): number | null {
   if (bars.length < period + 1) return null
-  const slice = bars.slice(-(period + 1))
+  const slice = bars.slice(-(period + 1)).filter(b => b.close > 0 && isFinite(b.close))
+  if (slice.length < period + 1) return null
   const logReturns = slice.slice(1).map((b, i) => Math.log(b.close / slice[i].close))
-  return Math.round(stddev(logReturns) * Math.sqrt(252) * 100 * 100) / 100
+  const validReturns = logReturns.filter(r => isFinite(r))
+  if (validReturns.length < period * 0.8) return null  // 유효 데이터가 80% 미만이면 null
+  return Math.round(stddev(validReturns) * Math.sqrt(252) * 100 * 100) / 100
 }
 
 // ─── 거래량 비율 ──────────────────────────────────────────────────
