@@ -127,6 +127,27 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], 
       : `$${v.toFixed(2)}`
   }
 
+  const hvRatio = snap.hv20 != null && snap.hv60 != null && snap.hv60 > 0
+    ? snap.hv20 / snap.hv60
+    : null
+
+  const regimeLabel: Record<IndicatorSnapshot['volatilityRegime'], string> = {
+    low:     '저변동성',
+    normal:  '정상',
+    high:    '고변동성 ⚠️',
+    extreme: '극단적 고변동성 🚨',
+  }
+
+  const volatilityBlock = (snap.volatilityRegime === 'high' || snap.volatilityRegime === 'extreme') && hvRatio != null
+    ? `
+## ⚠️ 고변동성 구간 필수 지시사항
+현재 변동성(HV20)이 평소(HV60) 대비 ${hvRatio.toFixed(1)}배입니다. 아래 규칙을 반드시 따르세요:
+1. risks 배열의 첫 번째 항목에 반드시 "고변동성 경고 — 평소의 ${hvRatio.toFixed(1)}배 수준, 전략 신뢰도 제한적" 포함
+2. buyStrategy.type은 "split" 고정 (lump 절대 금지)
+3. entries는 최소 3개로 분산 진입
+`
+    : ''
+
   const priceUnit = isKR ? '원 단위 정수' : 'USD 소수점 2자리 숫자'
   const currentPrice = snap.close
 
@@ -186,16 +207,19 @@ ${previousContext}
 - MACD: ${fmt(snap.macd)} / 시그널: ${fmt(snap.signal)} / 히스토그램: ${fmt(snap.histogram)}
 - 볼린저 밴드: 상단 ${fmtPrice(snap.bbUpper)} / 중심 ${fmtPrice(snap.bbMid)} / 하단 ${fmtPrice(snap.bbLower)}
 - 밴드 내 위치: ${bbPos}
+- BB 폭 비율 (현재/20일평균): ${fmt(snap.bbWidthRatio, 2)}배${snap.bbWidthRatio != null && snap.bbWidthRatio > 1.5 ? ' (급팽창 중)' : ''}
 - 이동평균: MA5 ${fmtPrice(snap.ma5)} / MA20 ${fmtPrice(snap.ma20)} / MA60 ${fmtPrice(snap.ma60)} / MA120 ${fmtPrice(snap.ma120)}
 - 이동평균 크로스: ${crossLabels[snap.maCrossState]}
 - 거래량 비율 (최근5일/20일평균): ${fmt(snap.volumeRatio, 2)}배
+- 역사적 변동성: HV20 ${fmt(snap.hv20, 1)}% / HV60 ${fmt(snap.hv60, 1)}% (비율 ${hvRatio != null ? hvRatio.toFixed(1) : 'N/A'}배)
+- 변동성 구간: ${regimeLabel[snap.volatilityRegime]}
 
 ## 최근 뉴스 (Yahoo Finance)
 ${newsSection}
 
 ## 실적 발표 데이터 (Yahoo Finance)
 ${earningsSection}
-
+${volatilityBlock}
 ## 출력 형식 (반드시 순수 JSON만 — 마크다운 코드블록 없이)
 {
   "signal": "strong_buy | buy | watch | sell | strong_sell 중 하나",
@@ -225,8 +249,11 @@ ${earningsSection}
 
 ## 전략 작성 규칙
 1. split 조건: RSI < 40 또는 하락 추세 또는 BB 하단 근처 또는 부정적 뉴스 존재 → 2~3회 분할 진입
-2. lump 조건: 강한 모멘텀 (거래량 급증 + 골든크로스 + RSI 50~65) AND 긍정적/중립 뉴스
-3. 목표가 근거 규칙 (가장 중요):
+2. lump 조건: 강한 모멘텀 (거래량 급증 + 골든크로스 + RSI 50~65) AND 긍정적/중립 뉴스 AND 변동성 구간 정상
+3. 볼린저 밴드 하단 판단 기준 (BB 폭 비율 참고):
+   - BB 폭 비율 < 1.5 (정상/수축) → 평균 회귀 가능성 고려 → 분할 매수 검토
+   - BB 폭 비율 ≥ 1.5 (급팽창 중) + 거래량 급증 → 추세 하락 가능성 → 평균 회귀 가정 보류, 관망 우선
+4. 목표가 근거 규칙 (가장 중요):
    - targets의 reason은 반드시 구체적인 기술적 레벨을 명시할 것
      예시 (O): "MA60(${fmtPrice(snap.ma60)}) 저항선 도달", "볼린저 밴드 상단(${fmtPrice(snap.bbUpper)}) 저항", "MA120(${fmtPrice(snap.ma120)}) 장기 저항선"
      예시 (X): "+5% 수익 실현 구간", "+12% 목표가", "단기 익절 구간" — 단순 수익률 표기는 근거가 아니므로 절대 금지
@@ -766,7 +793,11 @@ export async function POST(req: NextRequest) {
       ma120: 100000,
       volumeRatio: 1.0,
       bbPosition: 0.5,
-      maCrossState: 'neutral'
+      maCrossState: 'neutral',
+      hv20: null,
+      hv60: null,
+      volatilityRegime: 'normal',
+      bbWidthRatio: null,
     }
 
     const strategy = generateRuleBasedStrategy(ticker, fallbackSnap)

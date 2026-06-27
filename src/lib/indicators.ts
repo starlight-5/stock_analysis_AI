@@ -152,6 +152,15 @@ export function calcMA(closes: number[]): Indicators['ma'] {
   }
 }
 
+// ─── 역사적 변동성 ────────────────────────────────────────────────
+/** 연율화 역사적 변동성: 최근 period일 로그수익률의 표준편차 × √252 × 100 (%) */
+function calcHV(bars: OHLCVBar[], period: number): number | null {
+  if (bars.length < period + 1) return null
+  const slice = bars.slice(-(period + 1))
+  const logReturns = slice.slice(1).map((b, i) => Math.log(b.close / slice[i].close))
+  return Math.round(stddev(logReturns) * Math.sqrt(252) * 100 * 100) / 100
+}
+
 // ─── 거래량 비율 ──────────────────────────────────────────────────
 /** 최근 5일 평균 거래량 / 20일 평균 거래량 */
 function calcVolumeRatio(volumes: number[]): number {
@@ -212,11 +221,40 @@ export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapsho
     }
   }
 
+  // ── 역사적 변동성 ─────────────────────────────────────────────
+  const hv20 = calcHV(bars, 20)
+  const hv60 = calcHV(bars, 60)
+
+  const volatilityRegime: IndicatorSnapshot['volatilityRegime'] = (() => {
+    if (hv20 === null || hv60 === null || hv60 === 0) return 'normal'
+    const ratio = hv20 / hv60
+    if (ratio < 0.8) return 'low'
+    if (ratio < 1.5) return 'normal'
+    if (ratio < 2.5) return 'high'
+    return 'extreme'
+  })()
+
+  // ── BB 폭 비율 (현재 BB폭 / 최근 20일 평균 BB폭) ─────────────
+  const bbWidthRatio = (() => {
+    if (bbUpper === null || bbLower === null) return null
+    const currentWidth = bbUpper - bbLower
+    const widths: number[] = []
+    for (let i = Math.max(0, last - 19); i <= last; i++) {
+      const u = ind.bollinger.upper[i]
+      const l = ind.bollinger.lower[i]
+      if (u !== null && l !== null) widths.push(u - l)
+    }
+    if (widths.length === 0) return null
+    const avgWidth = widths.reduce((a, b) => a + b, 0) / widths.length
+    return avgWidth === 0 ? null : Math.round((currentWidth / avgWidth) * 100) / 100
+  })()
+
   return {
     close, rsi, macd, signal, histogram,
     bbUpper, bbMid, bbLower,
     ma5, ma20, ma60, ma120,
     volumeRatio: ind.volumeRatio,
     bbPosition, maCrossState,
+    hv20, hv60, volatilityRegime, bbWidthRatio,
   }
 }

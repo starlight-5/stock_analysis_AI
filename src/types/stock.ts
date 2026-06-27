@@ -104,6 +104,10 @@ export interface IndicatorSnapshot {
   volumeRatio: number
   bbPosition: number | null
   maCrossState: 'golden' | 'dead' | 'neutral'
+  hv20: number | null
+  hv60: number | null
+  volatilityRegime: 'low' | 'normal' | 'high' | 'extreme'
+  bbWidthRatio: number | null
 }
 
 // ─── 관심종목 ─────────────────────────────────────────────────────

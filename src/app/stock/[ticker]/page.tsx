@@ -32,6 +32,10 @@ function deriveSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
     maCrossState: ma5 != null && ma20 != null
       ? ma5 > ma20 ? 'golden' : ma5 < ma20 ? 'dead' : 'neutral'
       : 'neutral',
+    hv20: null,
+    hv60: null,
+    volatilityRegime: 'normal',
+    bbWidthRatio: null,
   }
 }
 
