@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import AuthGuard from '@/components/AuthGuard'
+import PriceSpectrumBar from '@/components/PriceSpectrumBar'
 import type { Position } from '@/types/stock'
 import type { PriceData, ExtInfo } from '@/types/price'
 
@@ -71,68 +72,25 @@ const PositionCard = memo(function PositionCard({
   navigate: (path: string) => void
   onClose: (id: string) => void
 }) {
+  const isKR     = IS_KR(pos.ticker)
   const meta     = SIGNAL_META[pos.signal] ?? SIGNAL_META.watch
   const avgEntry = pos.entries.reduce((s, e) => s + e.price * (e.ratio / 100), 0)
   const retPct   = cur != null && avgEntry > 0 ? diffPct(avgEntry, cur) : null
 
   const elapsed  = Math.max(0, Math.floor((Date.now() - new Date(pos.registeredAt).getTime()) / 86400000))
   const elapsedW = elapsed / 7
-  const barPct   = pos.holding ? Math.min(100, (elapsedW / pos.holding.maxWeeks) * 100) : 0
-  const [barWidth, setBarWidth] = useState(0)
+  const holdingBarPct = pos.holding ? Math.min(100, (elapsedW / pos.holding.maxWeeks) * 100) : 0
+  const [holdingBarWidth, setHoldingBarWidth] = useState(0)
   useEffect(() => {
-    const id = requestAnimationFrame(() => setBarWidth(barPct))
+    const id = requestAnimationFrame(() => setHoldingBarWidth(holdingBarPct))
     return () => cancelAnimationFrame(id)
-  }, [barPct])
+  }, [holdingBarPct])
 
-  const Row = ({ label, price, badge, right, rightColor }: {
-    label: string; price: string; badge?: string
-    right?: string; rightColor?: string
-  }) => (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '52px 1fr auto auto',
-      alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 4,
-    }}>
-      <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
-      <span style={{ fontWeight: 500 }}>{price}</span>
-      {badge
-        ? <span style={{
-            fontSize: 10, padding: '1px 6px', borderRadius: 8,
-            background: 'var(--color-background-secondary)',
-            color: 'var(--color-text-secondary)',
-            border: '0.5px solid var(--color-border-secondary)',
-            whiteSpace: 'nowrap',
-          }}>{badge}</span>
-        : <span />}
-      <span style={{ color: rightColor ?? 'var(--color-text-secondary)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-        {right}
-      </span>
-    </div>
-  )
-
-  const BarRow = ({ label, price, pct, reached }: {
-    label: string; price: string; pct: number; reached: boolean
-  }) => (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: '52px 1fr auto',
-        alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 3,
-      }}>
-        <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
-        <span style={{ fontWeight: 500 }}>{price}</span>
-        <span style={{ color: reached ? '#1D9E75' : 'var(--color-text-secondary)', fontWeight: reached ? 600 : 400, whiteSpace: 'nowrap' }}>
-          {reached ? '✓ 달성' : `+${pct.toFixed(1)}% 남음`}
-        </span>
-      </div>
-      <div style={{ height: 3, borderRadius: 2, background: 'var(--color-background-secondary)', overflow: 'hidden' }}>
-        <div style={{
-          height: '100%', borderRadius: 2,
-          background: reached ? '#1D9E75' : '#3B6EFF',
-          width: `${Math.min(100, Math.max(0, 100 - pct))}%`,
-          transition: 'width .4s',
-        }} />
-      </div>
-    </div>
-  )
+  const sectionTitle: React.CSSProperties = {
+    fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600,
+    letterSpacing: '0.05em', marginBottom: 8, textTransform: 'uppercase',
+    paddingBottom: 5, borderBottom: '0.5px solid var(--color-border-tertiary)',
+  }
 
   return (
     <div style={{
@@ -140,7 +98,8 @@ const PositionCard = memo(function PositionCard({
       border: '1px solid var(--color-border-tertiary)',
       borderRadius: 14, padding: '16px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+      {/* ── 헤더 ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
@@ -154,7 +113,7 @@ const PositionCard = memo(function PositionCard({
               background: meta.bg, color: meta.color,
             }}>{meta.label}</span>
             {retPct != null && (
-              <span style={{ fontSize: 12, fontWeight: 600, color: retPct >= 0 ? '#1D9E75' : '#E24B4A' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: retPct >= 0 ? '#1D9E75' : '#E24B4A' }}>
                 {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
               </span>
             )}
@@ -175,104 +134,159 @@ const PositionCard = memo(function PositionCard({
         </button>
       </div>
 
-      <div style={{ marginBottom: 10 }}>
-        <span style={{ fontSize: 18, fontWeight: 600 }}>
+      {/* ── AI 요약 ── */}
+      {pos.summary && (
+        <p style={{
+          fontSize: 12, lineHeight: 1.6, color: 'var(--color-text-secondary)',
+          margin: '0 0 12px',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}>
+          {pos.summary}
+        </p>
+      )}
+
+      {/* ── 현재가 ── */}
+      <div style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 20, fontWeight: 700 }}>
           {cur != null ? fmtCur(pos.ticker, cur) : '—'}
         </span>
         {ext && (
-          <span style={{
-            marginLeft: 8, fontSize: 11,
-            color: ext.change >= 0 ? '#1D9E75' : '#E24B4A',
-          }}>
+          <span style={{ marginLeft: 8, fontSize: 11, color: ext.change >= 0 ? '#1D9E75' : '#E24B4A' }}>
             {ext.type === 'pre' ? '장전' : '시간외'} {fmtCur(pos.ticker, ext.price)}{' '}
             {ext.changePct >= 0 ? '+' : ''}{ext.changePct.toFixed(2)}%
           </span>
         )}
       </div>
 
-      {/* 매수 */}
-      <div style={{ marginBottom: 8 }}>
-        <div style={{
-          fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600,
-          letterSpacing: '0.05em', marginBottom: 5, textTransform: 'uppercase',
-        }}>
-          매수 {pos.entryType === 'split' ? '분할' : '일괄'}
-        </div>
+      {/* ── 가격 스펙트럼 바 ── */}
+      {cur != null && (
+        <PriceSpectrumBar
+          stopLoss={pos.stopLoss}
+          entries={pos.entries}
+          currentPrice={cur}
+          targets={pos.targets}
+          isKR={isKR}
+        />
+      )}
+
+      {/* ── 매수 ── */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={sectionTitle}>매수 {pos.entryType === 'split' ? '분할' : '일괄'}</div>
         {pos.entries.map((e, i) => {
-          const dist = cur != null ? diffPct(cur, e.price) : null
+          const dist    = cur != null ? diffPct(cur, e.price) : null
+          const entered = dist != null && dist <= 0
           return (
-            <Row key={i}
-              label={pos.entryType === 'split' ? `${i + 1}차` : '진입가'}
-              price={fmtCur(pos.ticker, e.price)}
-              badge={pos.entryType === 'split' ? `${e.ratio}%` : undefined}
-              right={dist == null ? undefined : dist <= 0 ? `✓ 진입 (${dist.toFixed(1)}%)` : `${dist.toFixed(1)}% 위`}
-              rightColor={dist != null && dist <= 0 ? '#1D9E75' : undefined}
-            />
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 0', borderBottom: '0.5px solid var(--color-border-tertiary)',
+            }}>
+              <div style={{ width: 3, height: 30, borderRadius: 2, background: '#1D9E75', flexShrink: 0 }} />
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', flex: 1 }}>
+                  {pos.entryType === 'split' ? `${i + 1}차` : '진입가'}
+                  {pos.entryType === 'split' && (
+                    <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--color-text-secondary)' }}>{e.ratio}%</span>
+                  )}
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  {fmtCur(pos.ticker, e.price)}
+                </span>
+                {dist != null && (
+                  <span style={{
+                    fontSize: 10, padding: '2px 7px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap',
+                    background: entered ? '#1D9E7520' : 'var(--color-background-secondary)',
+                    color:      entered ? '#1D9E75'   : 'var(--color-text-secondary)',
+                    border: `0.5px solid ${entered ? '#1D9E7540' : 'var(--color-border-secondary)'}`,
+                  }}>
+                    {entered ? `✓ 진입 (${dist.toFixed(1)}%)` : `대기 +${dist.toFixed(1)}%`}
+                  </span>
+                )}
+              </div>
+            </div>
           )
         })}
-        <div style={{ height: '0.5px', background: 'var(--color-border-tertiary)', margin: '4px 0' }} />
-        <Row
-          label="손절선"
-          price={fmtCur(pos.ticker, pos.stopLoss)}
-          right={cur != null ? `${diffPct(cur, pos.stopLoss).toFixed(1)}%` : undefined}
-          rightColor={cur != null && diffPct(cur, pos.stopLoss) < 0 ? '#E24B4A' : undefined}
-        />
+
+        {/* 손절 콜아웃 */}
+        <div style={{
+          padding: '9px 12px', borderRadius: 8, marginTop: 8,
+          background: '#E24B4A08', border: '0.5px solid #E24B4A40',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#E24B4A' }}>🛑 손절선</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#E24B4A' }}>
+                {fmtCur(pos.ticker, pos.stopLoss)}
+              </span>
+              {cur != null && (
+                <span style={{ fontSize: 11, color: '#E24B4A99' }}>
+                  {diffPct(cur, pos.stopLoss).toFixed(1)}%
+                </span>
+              )}
+            </div>
+          </div>
+          {pos.stopLossReason && (
+            <div style={{ fontSize: 10, color: '#E24B4A80', lineHeight: 1.4, marginTop: 3 }}>
+              {pos.stopLossReason}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 매도 */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{
-          fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600,
-          letterSpacing: '0.05em', marginBottom: 5, textTransform: 'uppercase',
-        }}>
-          매도 목표
-        </div>
+      {/* ── 매도 목표 ── */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={sectionTitle}>매도 목표</div>
         {pos.targets.map((t, i) => {
           const pct     = cur != null ? diffPct(cur, t.price) : 0
           const reached = cur != null && pct <= 0
           return (
-            <BarRow key={i}
-              label={`${i + 1}차 목표`}
-              price={fmtCur(pos.ticker, t.price)}
-              pct={pct}
-              reached={reached}
-            />
+            <div key={i} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 3, height: 24, borderRadius: 2, background: '#EF9F27', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', flex: 1 }}>{i + 1}차 목표</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  {fmtCur(pos.ticker, t.price)}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
+                  color: reached ? '#1D9E75' : 'var(--color-text-secondary)',
+                }}>
+                  {reached ? '✓ 달성' : cur != null ? `+${pct.toFixed(1)}% 남음` : ''}
+                </span>
+              </div>
+              <div style={{ height: 3, borderRadius: 2, background: 'var(--color-background-secondary)', overflow: 'hidden', marginLeft: 13 }}>
+                <div style={{
+                  height: '100%', borderRadius: 2,
+                  background: reached ? '#1D9E75' : '#EF9F27',
+                  width: `${Math.min(100, Math.max(0, 100 - pct))}%`,
+                  transition: 'width .4s',
+                }} />
+              </div>
+            </div>
           )
         })}
       </div>
 
-      {/* 보유 기간 가이드 */}
+      {/* ── 보유 기간 가이드 ── */}
       {pos.holding && (() => {
         const { minWeeks, targetWeeks, maxWeeks } = pos.holding
 
         const status =
-          elapsedW > maxWeeks     ? 'over'   :
-          elapsedW > targetWeeks  ? 'review' :
-          elapsedW >= minWeeks    ? 'normal' : 'watch'
+          elapsedW > maxWeeks    ? 'over'   :
+          elapsedW > targetWeeks ? 'review' :
+          elapsedW >= minWeeks   ? 'normal' : 'watch'
 
         const statusLabel: Record<string, string> = {
-          watch:  '관찰 중',
-          normal: '정상',
-          review: '재검토 필요',
-          over:   '기간 초과',
+          watch: '관찰 중', normal: '정상', review: '재검토 필요', over: '기간 초과',
         }
         const statusColor: Record<string, string> = {
-          watch:  'var(--color-text-secondary)',
-          normal: '#1DB87A',
-          review: '#F5A623',
-          over:   '#FF5A5A',
+          watch: 'var(--color-text-secondary)', normal: '#1D9E75', review: '#EF9F27', over: '#E24B4A',
         }
         const barColor = statusColor[status]
 
         return (
-          <div style={{
-            borderTop: '0.5px solid var(--color-border-tertiary)',
-            paddingTop: 10,
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              marginBottom: 6,
-            }}>
+          <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', paddingTop: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 보유 기간 가이드
               </span>
@@ -281,12 +295,9 @@ const PositionCard = memo(function PositionCard({
               </span>
             </div>
 
-            {/* 진행 바 */}
             <div style={{ position: 'relative', height: 4, borderRadius: 2, background: 'var(--color-background-secondary)', marginBottom: 6 }}>
-              <div style={{ height: '100%', borderRadius: 2, background: barColor, width: `${barWidth}%`, transition: 'width 0.6s ease' }} />
-              {/* 마커: minWeeks */}
+              <div style={{ height: '100%', borderRadius: 2, background: barColor, width: `${holdingBarWidth}%`, transition: 'width 0.6s ease' }} />
               <div style={{ position: 'absolute', top: -2, left: `${(minWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: '#404880' }} />
-              {/* 마커: targetWeeks */}
               <div style={{ position: 'absolute', top: -2, left: `${(targetWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: '#7BA3FF' }} />
             </div>
 
