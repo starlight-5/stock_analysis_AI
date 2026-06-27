@@ -36,10 +36,11 @@ export async function upsertStrategyHistory(
   data: { signal: string; summary: string; price: number; snapshot: IndicatorSnapshot }
 ): Promise<void> {
   try {
+    const snapshot = data.snapshot as unknown as Record<string, unknown>
     await prisma.strategyHistory.upsert({
       where:  { userId_ticker: { userId, ticker } },
-      update: { ...data, generatedAt: new Date() },
-      create: { userId, ticker, ...data },
+      update: { ...data, snapshot, generatedAt: new Date() },
+      create: { userId, ticker, ...data, snapshot },
     })
   } catch (e) {
     console.warn('[StrategyHistory] upsert 실패:', e)
