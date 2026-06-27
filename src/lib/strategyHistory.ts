@@ -22,7 +22,7 @@ export async function getStrategyHistory(
       signal:      record.signal,
       summary:     record.summary,
       price:       record.price,
-      snapshot:    record.snapshot as IndicatorSnapshot,
+      snapshot:    record.snapshot as unknown as IndicatorSnapshot,
       generatedAt: record.generatedAt,
     }
   } catch {
