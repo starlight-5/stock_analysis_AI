@@ -36,7 +36,8 @@ export async function upsertStrategyHistory(
   data: { signal: string; summary: string; price: number; snapshot: IndicatorSnapshot }
 ): Promise<void> {
   try {
-    const snapshot = data.snapshot as unknown as Record<string, unknown>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const snapshot = data.snapshot as any
     await prisma.strategyHistory.upsert({
       where:  { userId_ticker: { userId, ticker } },
       update: { ...data, snapshot, generatedAt: new Date() },
