@@ -18,6 +18,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
+import { getStrategyHistory, upsertStrategyHistory, buildPreviousContext } from '@/lib/strategyHistory'
 import type { StrategyResult, IndicatorSnapshot } from '@/types/stock'
 
 // ─── 전략 캐시 (10분 TTL) ────────────────────────────────────────
@@ -115,7 +116,7 @@ async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
 
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
 
-function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData): string {
+function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, previousContext = ''): string {
   const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
   const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
@@ -178,6 +179,7 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], 
 - 티커: ${ticker}
 - 현재가: ${fmtPrice(currentPrice)}
 - 가격 단위: ${priceUnit} (JSON 내 모든 price 필드에 이 단위를 사용할 것)
+${previousContext}
 
 ## 기술적 지표 (일봉 기준 최신값)
 - RSI(14): ${fmt(snap.rsi, 1)}${snap.rsi == null ? '' : snap.rsi < 30 ? ' ⚠️ 과매도' : snap.rsi > 70 ? ' ⚠️ 과매수' : ''}
@@ -624,10 +626,11 @@ export async function POST(req: NextRequest) {
     ticker = ticker.toUpperCase()
     const forceRefresh = !!body.forceRefresh
 
+    const session = await getServerSession(authOptions)
+    const userId = (session?.user as any)?.id as string | undefined
+
     if (!forceRefresh) {
       // 1순위: DB — 활성 포지션에 저장된 전략
-      const session = await getServerSession(authOptions)
-      const userId = (session?.user as any)?.id
       if (userId) {
         const position = await prisma.position.findFirst({
           where: { userId, ticker, status: 'active' },
@@ -662,12 +665,18 @@ export async function POST(req: NextRequest) {
       throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
     }
 
-    // 4. 뉴스 + 실적 병렬 fetch → 프롬프트 조립 (실패해도 분석 계속)
-    const [news, earnings] = await Promise.all([
+    // 4. 뉴스 + 실적 + 이전 전략 이력 병렬 fetch → 프롬프트 조립
+    const [news, earnings, previousHistory] = await Promise.all([
       fetchYahooNews(ticker),
       fetchEarnings(ticker),
+      userId ? getStrategyHistory(userId, ticker) : Promise.resolve(null),
     ])
-    const prompt = buildPrompt(ticker, snap, news, earnings)
+
+    const previousContext = previousHistory
+      ? buildPreviousContext(previousHistory, snap, /^\d{6}$/.test(ticker))
+      : ''
+
+    const prompt = buildPrompt(ticker, snap, news, earnings, previousContext)
 
     // 5. Gemini REST API 호출
     const response = await fetch(
@@ -706,6 +715,16 @@ export async function POST(req: NextRequest) {
 
     // 6. Gemini 응답 파싱 및 결과 구조화
     const strategy = parseStrategyResponse(rawText, ticker)
+
+    // 7. 전략 이력 저장 (로그인 사용자만)
+    if (userId) {
+      upsertStrategyHistory(userId, ticker, {
+        signal:   strategy.signal,
+        summary:  strategy.summary,
+        price:    snap.close,
+        snapshot: snap,
+      })
+    }
 
     const responseData = {
       strategy,
