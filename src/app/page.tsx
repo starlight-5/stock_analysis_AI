@@ -901,17 +901,6 @@ export default function HomePage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          <a href="/backtest" style={{
-            fontSize: 12, color: 'var(--color-text-secondary)',
-            textDecoration: 'none', padding: '5px 12px',
-            border: '1px solid var(--color-border-secondary)',
-            borderRadius: 6, transition: 'color 0.2s, border-color 0.2s',
-          }}
-            onMouseEnter={e => { (e.target as HTMLElement).style.color = '#ECEEF8'; (e.target as HTMLElement).style.borderColor = '#404880' }}
-            onMouseLeave={e => { (e.target as HTMLElement).style.color = 'var(--color-text-secondary)'; (e.target as HTMLElement).style.borderColor = 'var(--color-border-secondary)' }}
-          >
-            백테스트
-          </a>
           <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
             Gemini AI · Alpaca · 한국투자증권
           </span>
