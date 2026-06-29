@@ -3,53 +3,99 @@ import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
 import type { OHLCVBar, IndicatorSnapshot } from '@/types/stock'
 
-const MIN_BARS    = 35
-const MAX_HOLD    = 30  // 최대 보유 거래일 (이후 강제 청산)
+const MIN_BARS      = 35
+const MAX_HOLD      = 30    // 최대 보유 거래일 (이후 강제 청산)
+const SLIPPAGE_RATE = 0.002 // 슬리피지 + 수수료 합산 (편도 0.2%)
 
-// ── 복합 스코어 계산 ──────────────────────────────────────────────
-// RSI·BB가 핵심 드라이버 (가중치 높음), MACD·MA는 보조 확인 (가중치 낮음)
-// RSI/BB 하나만 과매도여도 buy threshold(+2)에 도달하도록 설계
+// ── 시장 상태(Market Regime) 감지 ──────────────────────────────────
+// MA60 > MA120 → 추세 시장, 그 외 → 횡보/하락 시장
+type Regime = 'trending' | 'ranging'
+
+function detectRegime(snap: IndicatorSnapshot): Regime {
+  if (snap.ma60 !== null && snap.ma120 !== null && snap.ma60 > snap.ma120) {
+    return 'trending'
+  }
+  return 'ranging'
+}
+
+// ── 복합 스코어 계산 (Regime 적응형) ──────────────────────────────
+// 추세 시장: MACD·MA 가중치 ↑, RSI·BB 가중치 ↓ (추세 추종)
+// 횡보·하락 시장: RSI·BB 가중치 ↑ (평균회귀)
 function calcScore(snap: IndicatorSnapshot, prev: IndicatorSnapshot | null): number {
+  const regime = detectRegime(snap)
   let score = 0
-  const rsi    = snap.rsi   ?? 50
-  const bbPos  = snap.bbPosition ?? 0.5
-  const hist   = snap.histogram ?? 0
-  const prevH  = prev?.histogram ?? null
+  const rsi   = snap.rsi        ?? 50
+  const bbPos = snap.bbPosition ?? 0.5
+  const hist  = snap.histogram  ?? 0
+  const prevH = prev?.histogram ?? null
 
-  // RSI (-3 ~ +3) — 45 미만을 buy 영역으로 확장
-  if      (rsi < 30)              score += 3
-  else if (rsi < 45)              score += 2
-  else if (rsi >= 55 && rsi < 70) score -= 2
-  else if (rsi >= 70)             score -= 3
+  if (regime === 'trending') {
+    // RSI (-2 ~ +2)
+    if      (rsi < 30)              score += 2
+    else if (rsi < 45)              score += 1
+    else if (rsi >= 55 && rsi < 70) score -= 1
+    else if (rsi >= 70)             score -= 2
 
-  // 볼린저 위치 (-3 ~ +3)
-  if      (bbPos < 0.15)                 score += 3
-  else if (bbPos < 0.35)                 score += 2
-  else if (bbPos < 0.5)                  score += 1
-  else if (bbPos >= 0.65 && bbPos < 0.85) score -= 2
-  else if (bbPos >= 0.85)                score -= 3
+    // 볼린저 밴드 위치 (-1 ~ +1)
+    if      (bbPos < 0.15)  score += 1
+    else if (bbPos >= 0.85) score -= 1
 
-  // MACD 히스토그램 (-1 ~ +1) — 가중치 절반으로 줄여 RSI/BB 신호 보호
-  if (prevH !== null) {
-    if   (prevH <= 0 && hist > 0)       score += 1  // 음→양 전환
-    else if (hist > 0 && hist > prevH)  score += 1  // 양수 증가
-    else if (prevH >= 0 && hist < 0)    score -= 1  // 양→음 전환
-    else if (hist < 0 && hist < prevH)  score -= 1  // 음수 악화
+    // MACD 히스토그램 (-2 ~ +2)
+    if (prevH !== null) {
+      if      (prevH <= 0 && hist > 0)   score += 2
+      else if (hist > 0 && hist > prevH) score += 1
+      else if (prevH >= 0 && hist < 0)   score -= 2
+      else if (hist < 0 && hist < prevH) score -= 1
+    }
+
+    // MA 5/20 크로스 (-2 ~ +2)
+    if      (snap.maCrossState === 'golden') score += 2
+    else if (snap.maCrossState === 'dead')   score -= 2
+
+    // MA 20/60 크로스 (-2 ~ +2)
+    const { ma20: m20t, ma60: m60t } = snap
+    const pm20t = prev?.ma20 ?? null, pm60t = prev?.ma60 ?? null
+    if (m20t !== null && m60t !== null && pm20t !== null && pm60t !== null) {
+      if      (pm20t <= pm60t && m20t > m60t) score += 2
+      else if (pm20t >= pm60t && m20t < m60t) score -= 2
+    }
+  } else {
+    // 횡보·하락 시장: RSI·BB 평균회귀 중심
+    // RSI (-3 ~ +3)
+    if      (rsi < 30)              score += 3
+    else if (rsi < 45)              score += 2
+    else if (rsi >= 55 && rsi < 70) score -= 2
+    else if (rsi >= 70)             score -= 3
+
+    // 볼린저 밴드 위치 (-3 ~ +3)
+    if      (bbPos < 0.15)                   score += 3
+    else if (bbPos < 0.35)                   score += 2
+    else if (bbPos < 0.5)                    score += 1
+    else if (bbPos >= 0.65 && bbPos < 0.85)  score -= 2
+    else if (bbPos >= 0.85)                  score -= 3
+
+    // MACD 히스토그램 (-1 ~ +1)
+    if (prevH !== null) {
+      if      (prevH <= 0 && hist > 0)   score += 1
+      else if (hist > 0 && hist > prevH) score += 1
+      else if (prevH >= 0 && hist < 0)   score -= 1
+      else if (hist < 0 && hist < prevH) score -= 1
+    }
+
+    // MA 5/20 크로스 (-1 ~ +1)
+    if      (snap.maCrossState === 'golden') score += 1
+    else if (snap.maCrossState === 'dead')   score -= 1
+
+    // MA 20/60 크로스 전환 시점 (-1 ~ +1)
+    const { ma20: m20r, ma60: m60r } = snap
+    const pm20r = prev?.ma20 ?? null, pm60r = prev?.ma60 ?? null
+    if (m20r !== null && m60r !== null && pm20r !== null && pm60r !== null) {
+      if      (pm20r <= pm60r && m20r > m60r) score += 1
+      else if (pm20r >= pm60r && m20r < m60r) score -= 1
+    }
   }
 
-  // MA 5/20 크로스 (-1 ~ +1)
-  if      (snap.maCrossState === 'golden') score += 1
-  else if (snap.maCrossState === 'dead')   score -= 1
-
-  // MA 20/60 크로스 전환 시점만 (-1 ~ +1)
-  const { ma20, ma60 } = snap
-  const pm20 = prev?.ma20 ?? null, pm60 = prev?.ma60 ?? null
-  if (ma20 !== null && ma60 !== null && pm20 !== null && pm60 !== null) {
-    if      (pm20 <= pm60 && ma20 > ma60) score += 1
-    else if (pm20 >= pm60 && ma20 < ma60) score -= 1
-  }
-
-  // 거래량 × 방향 (-1 ~ +1)
+  // 거래량 × 방향 (공통, -1 ~ +1)
   const up = prev ? snap.close > prev.close : false
   if      (up  && snap.volumeRatio > 1.5) score += 1
   else if (!up && snap.volumeRatio > 1.5) score -= 1
@@ -57,8 +103,6 @@ function calcScore(snap: IndicatorSnapshot, prev: IndicatorSnapshot | null): num
   return score
 }
 
-// RSI 또는 BB 하나가 과매도 구간이면 score >= 2 → buy
-// 둘 다 과매도면 score >= 4 → strong_buy
 function scoreToSignal(s: number): string {
   if (s >= 4)  return 'strong_buy'
   if (s >= 2)  return 'buy'
@@ -67,7 +111,28 @@ function scoreToSignal(s: number): string {
   return 'strong_sell'
 }
 
-// ── Gemini 전략 호출 (기존 strategy 라우트와 동일 프롬프트) ──────────
+// ── MDD (최대 낙폭, %) ─────────────────────────────────────────────
+function calcMDD(returns: number[]): number {
+  let peak = 0, mdd = 0, cum = 0
+  for (const r of returns) {
+    cum += r
+    if (cum > peak) peak = cum
+    const dd = peak - cum
+    if (dd > mdd) mdd = dd
+  }
+  return Number(mdd.toFixed(2))
+}
+
+// ── Sharpe Ratio (per-trade 수익률 기반 정보 비율) ──────────────────
+function calcSharpe(returns: number[]): number {
+  if (returns.length < 2) return 0
+  const mean     = returns.reduce((a, b) => a + b, 0) / returns.length
+  const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length
+  const sd       = Math.sqrt(variance)
+  return sd === 0 ? 0 : Number((mean / sd).toFixed(2))
+}
+
+// ── Gemini 전략 호출 ──────────────────────────────────────────────
 function buildPrompt(ticker: string, snap: IndicatorSnapshot): string {
   const fmt = (v: number | null, d = 2) => v == null ? 'N/A' : v.toFixed(d)
   const won = (v: number | null)        => v == null ? 'N/A' : `${v.toLocaleString('ko-KR')}원`
@@ -79,8 +144,8 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot): string {
     : `중간 (${pct(snap.bbPosition)})`
 
   const cross: Record<string, string> = {
-    golden: '골든크로스 (5일선 > 20일선)',
-    dead:   '데드크로스 (5일선 < 20일선)',
+    golden:  '골든크로스 (5일선 > 20일선)',
+    dead:    '데드크로스 (5일선 < 20일선)',
     neutral: '중립',
   }
 
@@ -122,7 +187,7 @@ split 조건: RSI<40 또는 하락추세 → 2~3회 분할. lump 조건: 강한 
 }
 
 interface GeminiStrategy {
-  signal: string
+  signal:  string
   entries: { price: number; ratio: number; reason: string }[]
   stopLoss: number
   targets:  { price: number; ratio: number; reason: string }[]
@@ -166,13 +231,8 @@ async function callGemini(
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-// ── 전략 시뮬레이션: Gemini 가격 그대로 따라가기 ──────────────────
-function simulateTrade(
-  strategy: GeminiStrategy,
-  signalIdx: number,
-  bars: OHLCVBar[],
-) {
-  // 정상 신호 아니면 skip
+// ── 전략 시뮬레이션 (슬리피지 반영) ───────────────────────────────
+function simulateTrade(strategy: GeminiStrategy, signalIdx: number, bars: OHLCVBar[]) {
   if (strategy.signal !== 'buy' && strategy.signal !== 'strong_buy') {
     return { skipped: true, skipReason: `Gemini 비동의 (${strategy.signal})` }
   }
@@ -180,16 +240,16 @@ function simulateTrade(
     return { skipped: true, skipReason: '전략 데이터 불완전' }
   }
 
-  const UNIT_CAPITAL = 1_000_000  // 비중 계산용 기준 자본 (실제 비율만 사용)
+  const UNIT_CAPITAL = 1_000_000
   const entryHit  = strategy.entries.map(() => false)
   const targetHit = strategy.targets.map(() => false)
 
-  let shares          = 0       // 총 보유 주수
-  let investedCost    = 0       // 총 투자 원가
-  let realizedPnL     = 0       // 실현 손익
+  let shares          = 0
+  let investedCost    = 0
+  let realizedPnL     = 0
   let firstEntryDate: string | null = null
-  let closeDate: string | null  = null
-  let closeReason: string       = 'timeout'
+  let closeDate: string | null      = null
+  let closeReason: string           = 'timeout'
   let stopped         = false
 
   const endIdx = Math.min(signalIdx + MAX_HOLD, bars.length - 1)
@@ -197,46 +257,45 @@ function simulateTrade(
   for (let i = signalIdx + 1; i <= endIdx; i++) {
     const { low, high, date } = bars[i]
 
-    // ─ 아직 진입 안 된 entry 가격 체크 (low ≤ entry ≤ high)
+    // 진입 체결 (슬리피지 적용: 실제 체결가 = ep * (1 + rate))
     for (let j = 0; j < strategy.entries.length; j++) {
       if (entryHit[j]) continue
       const { price: ep, ratio } = strategy.entries[j]
       if (low <= ep && ep <= high) {
-        const capital = UNIT_CAPITAL * (ratio / 100)
-        const bought  = capital / ep
-        shares       += bought
-        investedCost += capital
-        entryHit[j]  = true
+        const capital        = UNIT_CAPITAL * (ratio / 100)
+        const effectiveEntry = ep * (1 + SLIPPAGE_RATE)
+        shares              += capital / effectiveEntry
+        investedCost        += capital
+        entryHit[j]          = true
         if (!firstEntryDate) firstEntryDate = date
       }
     }
 
-    if (shares === 0) continue  // 아직 진입 전
+    if (shares === 0) continue
 
-    // ─ 손절 체크 (당일 저가가 손절선 이하)
+    // 손절 체크 (슬리피지 적용: 실제 체결가 = stopLoss * (1 - rate))
     if (low <= strategy.stopLoss) {
-      realizedPnL += shares * strategy.stopLoss - investedCost
+      realizedPnL += shares * (strategy.stopLoss * (1 - SLIPPAGE_RATE)) - investedCost
       closeDate    = date
       closeReason  = 'stop_loss'
       stopped      = true
       break
     }
 
-    // ─ 목표가 체크 (당일 고가가 목표가 이상)
+    // 목표가 체크 (슬리피지 적용: 실제 체결가 = tp * (1 - rate))
     for (let j = 0; j < strategy.targets.length; j++) {
       if (targetHit[j]) continue
       const { price: tp, ratio } = strategy.targets[j]
       if (high >= tp) {
-        const sellShares = shares * (ratio / 100)
-        const costPart   = investedCost * (ratio / 100)
-        realizedPnL     += sellShares * tp - costPart
-        shares          -= sellShares
-        investedCost    -= costPart
-        targetHit[j]    = true
+        const sellShares  = shares * (ratio / 100)
+        const costPart    = investedCost * (ratio / 100)
+        realizedPnL      += sellShares * (tp * (1 - SLIPPAGE_RATE)) - costPart
+        shares           -= sellShares
+        investedCost     -= costPart
+        targetHit[j]      = true
       }
     }
 
-    // ─ 전체 목표 달성
     if (targetHit.every(h => h)) {
       closeDate   = date
       closeReason = 'all_targets'
@@ -244,17 +303,16 @@ function simulateTrade(
     }
   }
 
-  // ─ 기간 만료: 남은 포지션 강제 청산
+  // 기간 만료: 잔여 포지션 슬리피지 적용 강제 청산
   if (!stopped && shares > 0) {
-    const lastClose  = bars[endIdx].close
-    realizedPnL     += shares * lastClose - investedCost
-    closeDate        = bars[endIdx].date
-    closeReason      = targetHit.some(h => h) ? 'partial_target' : 'timeout'
+    realizedPnL += shares * (bars[endIdx].close * (1 - SLIPPAGE_RATE)) - investedCost
+    closeDate    = bars[endIdx].date
+    closeReason  = targetHit.some(h => h) ? 'partial_target' : 'timeout'
   }
 
-  const entryCount    = entryHit.filter(Boolean).length
-  const targetCount   = targetHit.filter(Boolean).length
-  const returnPct     = entryCount > 0
+  const entryCount  = entryHit.filter(Boolean).length
+  const targetCount = targetHit.filter(Boolean).length
+  const returnPct   = entryCount > 0
     ? Number((realizedPnL / UNIT_CAPITAL * 100).toFixed(2))
     : null
 
@@ -279,8 +337,10 @@ export async function POST(req: NextRequest) {
     const ticker = (body.ticker as string)?.toUpperCase()
     if (!ticker) return NextResponse.json({ error: 'ticker 필드 필요' }, { status: 400 })
 
+    const isKR         = /^\d{6}$/.test(ticker)
     const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
-    const { bars }     = await fetchStockData(ticker)
+    // 미국 주식은 최대 500거래일(~2년), 한국 주식은 KIS API 제한으로 120일 유지
+    const { bars } = await fetchStockData(ticker, isKR ? 120 : 500)
     if (bars.length < MIN_BARS) {
       return NextResponse.json({ error: `데이터 부족 (최소 ${MIN_BARS}일)` }, { status: 400 })
     }
@@ -292,6 +352,7 @@ export async function POST(req: NextRequest) {
       close:  number
       score:  number
       signal: string
+      regime: Regime
       snap:   IndicatorSnapshot | null
     }
 
@@ -300,20 +361,21 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < bars.length; i++) {
       if (i < MIN_BARS - 1) {
-        days.push({ index: i, date: bars[i].date, close: bars[i].close, score: 0, signal: 'watch', snap: null })
+        days.push({ index: i, date: bars[i].date, close: bars[i].close, score: 0, signal: 'watch', regime: 'ranging', snap: null })
         continue
       }
-      const ind   = calcIndicators(bars.slice(0, i + 1))
-      const snap  = getSnapshot(bars.slice(0, i + 1), ind)
-      const score = calcScore(snap, prevSnap)
-      days.push({ index: i, date: bars[i].date, close: bars[i].close, score, signal: scoreToSignal(score), snap })
+      const ind    = calcIndicators(bars.slice(0, i + 1))
+      const snap   = getSnapshot(bars.slice(0, i + 1), ind)
+      const score  = calcScore(snap, prevSnap)
+      const regime = detectRegime(snap)
+      days.push({ index: i, date: bars[i].date, close: bars[i].close, score, signal: scoreToSignal(score), regime, snap })
       prevSnap = snap
     }
 
     // ── 2. Buy 전환 시점 추출 ─────────────────────────────────────
     const candidates = days.filter((d, i) => {
-      if (i === 0 || !d.snap)                            return false
-      if (d.index + MAX_HOLD >= bars.length)             return false
+      if (i === 0 || !d.snap)                      return false
+      if (d.index + MAX_HOLD >= bars.length)        return false
       const isBuy    = d.signal === 'buy' || d.signal === 'strong_buy'
       const wasntBuy = days[i - 1].signal !== 'buy' && days[i - 1].signal !== 'strong_buy'
       return isBuy && wasntBuy
@@ -325,12 +387,12 @@ export async function POST(req: NextRequest) {
       signalClose:    number
       compScore:      number
       compSignal:     string
+      regime:         Regime
       geminiSignal:   string | null
       geminiSummary:  string
       entries:        { price: number; ratio: number; reason: string }[]
       stopLoss:       number
       targets:        { price: number; ratio: number; reason: string }[]
-      // 시뮬레이션 결과
       skipped:        boolean
       skipReason?:    string
       firstEntryDate: string | null
@@ -356,7 +418,7 @@ export async function POST(req: NextRequest) {
       if (!strategy) {
         trades.push({
           signalDate: c.date, signalClose: c.close,
-          compScore: c.score, compSignal: c.signal,
+          compScore: c.score, compSignal: c.signal, regime: c.regime,
           geminiSignal: null, geminiSummary: '',
           entries: [], stopLoss: 0, targets: [],
           skipped: true, skipReason: 'Gemini 호출 실패',
@@ -374,6 +436,7 @@ export async function POST(req: NextRequest) {
         signalClose:   c.close,
         compScore:     c.score,
         compSignal:    c.signal,
+        regime:        c.regime,
         geminiSignal:  strategy.signal,
         geminiSummary: strategy.summary,
         entries:       strategy.entries,
@@ -383,14 +446,15 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── 4. 집계 ───────────────────────────────────────────────────
+    // ── 4. 집계 + MDD / Sharpe ────────────────────────────────────
     const executed = trades.filter(t => !t.skipped && t.returnPct !== null)
     const wins     = executed.filter(t => (t.returnPct ?? 0) > 0)
     const losses   = executed.filter(t => (t.returnPct ?? 0) <= 0)
     const stopped  = executed.filter(t => t.closeReason === 'stop_loss')
     const targeted = executed.filter(t => t.closeReason === 'all_targets' || t.closeReason === 'partial_target')
 
-    const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
+    const avg          = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
+    const returnValues = executed.map(t => t.returnPct!)
 
     const summary = {
       totalSignals:    candidates.length,
@@ -402,16 +466,19 @@ export async function POST(req: NextRequest) {
       stopLossHits:    stopped.length,
       allTargetHits:   targeted.length,
       winRate:         executed.length ? Number((wins.length / executed.length * 100).toFixed(1)) : 0,
-      avgReturn:       Number(avg(executed.map(t => t.returnPct!)).toFixed(2)),
+      avgReturn:       Number(avg(returnValues).toFixed(2)),
       avgWin:          Number(avg(wins.map(t => t.returnPct!)).toFixed(2)),
       avgLoss:         Number(avg(losses.map(t => t.returnPct!)).toFixed(2)),
-      totalReturn:     Number(executed.reduce((a, t) => a + (t.returnPct ?? 0), 0).toFixed(2)),
+      totalReturn:     Number(returnValues.reduce((a, b) => a + b, 0).toFixed(2)),
+      mdd:             calcMDD(returnValues),
+      sharpe:          calcSharpe(returnValues),
+      slippageRate:    SLIPPAGE_RATE,
     }
 
     return NextResponse.json({
       ticker,
-      period:  { start: bars[0].date, end: bars[bars.length - 1].date, tradingDays: bars.length },
-      hasGemini: !!geminiApiKey,
+      period:      { start: bars[0].date, end: bars[bars.length - 1].date, tradingDays: bars.length },
+      hasGemini:   !!geminiApiKey,
       maxHoldDays: MAX_HOLD,
       summary,
       trades,

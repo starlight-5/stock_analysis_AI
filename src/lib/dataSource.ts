@@ -21,13 +21,13 @@ function setCache(key: string, data: StockDataResult) {
 }
 
 // ─── 1. Alpaca (US 주식) ─────────────────────────────────────────
-async function fetchFromAlpaca(ticker: string): Promise<OHLCVBar[]> {
+async function fetchFromAlpaca(ticker: string, days = 120): Promise<OHLCVBar[]> {
   if (!ALPACA_KEY_ID || !ALPACA_SECRET)
     throw new Error('ALPACA_API_KEY_ID 또는 ALPACA_SECRET_KEY 미설정')
 
-  const start = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10)
+  const start = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
   const url = `https://data.alpaca.markets/v2/stocks/${ticker}/bars` +
-    `?timeframe=1Day&start=${start}&limit=120&feed=iex&sort=asc`
+    `?timeframe=1Day&start=${start}&limit=${days}&feed=iex&sort=asc`
 
   const res = await fetch(url, {
     headers: {
@@ -161,8 +161,8 @@ async function fetchStockName(ticker: string): Promise<string | undefined> {
 }
 
 // ─── 퍼블릭 진입점 ───────────────────────────────────────────────
-export async function fetchStockData(ticker: string): Promise<StockDataResult> {
-  const cacheKey = `stock:${ticker}`
+export async function fetchStockData(ticker: string, days = 120): Promise<StockDataResult> {
+  const cacheKey = `stock:${ticker}:${days}`
   const cached = getCached(cacheKey)
   if (cached) return cached
 
@@ -175,7 +175,7 @@ export async function fetchStockData(ticker: string): Promise<StockDataResult> {
     bars   = await fetchFromKoreaInvestment(ticker)
     source = 'korea_investment'
   } else {
-    bars   = await fetchFromAlpaca(ticker)
+    bars   = await fetchFromAlpaca(ticker, days)
     source = 'alpaca'
   }
 
