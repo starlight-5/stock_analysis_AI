@@ -114,9 +114,45 @@ async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
   }
 }
 
+// ─── 시장 지수 Regime 감지 ──────────────────────────────────────
+interface MarketRegime {
+  label: string       // 'KOSPI' | 'S&P 500'
+  price: number
+  ma20: number
+  regime: 'bull' | 'bear'
+  pctFromMa20: number // MA20 대비 등락률 (%)
+}
+
+async function getMarketRegime(isKR: boolean): Promise<MarketRegime | null> {
+  try {
+    const symbol = isKR ? '%5EKS11' : '%5EGSPC' // ^KS11(KOSPI) or ^GSPC(S&P 500)
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=2mo`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) }
+    )
+    if (!res.ok) return null
+    const json   = await res.json()
+    const closes: (number | null)[] = json.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? []
+    const valid  = closes.filter((c): c is number => c != null && c > 0)
+    if (valid.length < 20) return null
+
+    const ma20  = valid.slice(-20).reduce((a, b) => a + b, 0) / 20
+    const price = valid[valid.length - 1]
+    return {
+      label:        isKR ? 'KOSPI' : 'S&P 500',
+      price,
+      ma20,
+      regime:       price >= ma20 ? 'bull' : 'bear',
+      pctFromMa20:  Math.round((price - ma20) / ma20 * 1000) / 10,
+    }
+  } catch {
+    return null
+  }
+}
+
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
 
-function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, previousContext = ''): string {
+function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, previousContext = '', marketRegime: MarketRegime | null = null): string {
   const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
   const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
@@ -219,6 +255,15 @@ ${newsSection}
 
 ## 실적 발표 데이터 (Yahoo Finance)
 ${earningsSection}
+
+## 시장 지수 현황
+${marketRegime
+  ? `- ${marketRegime.label}: MA20 대비 ${marketRegime.pctFromMa20 >= 0 ? '+' : ''}${marketRegime.pctFromMa20}% (${marketRegime.regime === 'bull' ? '상승장' : '⚠️ 하락장 — MA20 하향 이탈'})`
+  : '- 시장 지수 데이터 없음 — 기술적 지표만으로 판단'}
+${marketRegime?.regime === 'bear' ? `⚠️ 하락장 지시사항:
+- signal을 한 단계 보수적으로 설정 (strong_buy → buy, buy → watch 우선 고려)
+- risks 첫 번째 항목에 "${marketRegime.label} MA20 하향 이탈 — 시장 전반 하락 리스크" 반드시 포함
+- buyStrategy.type은 "split" 고정, entries 비중 분산` : ''}
 ${volatilityBlock}
 ## 출력 형식 (반드시 순수 JSON만 — 마크다운 코드블록 없이)
 {
@@ -646,9 +691,23 @@ function parsePositionToStrategy(position: {
   }
 }
 
+// ─── 시장 Regime 기반 시그널 다운그레이드 ───────────────────────
+function applyMarketRegimeFilter(
+  signal: StrategyResult['signal'],
+  regime: MarketRegime | null,
+): StrategyResult['signal'] {
+  if (!regime || regime.regime === 'bull') return signal
+  const downgrade: Partial<Record<StrategyResult['signal'], StrategyResult['signal']>> = {
+    strong_buy: 'buy',
+    buy:        'watch',
+  }
+  return downgrade[signal] ?? signal
+}
+
 // ─── API Route Handler ───────────────────────────────────────────
 export async function POST(req: NextRequest) {
   let snap: IndicatorSnapshot | null = null
+  let marketRegime: MarketRegime | null = null
   let ticker = 'MOCK'
   let source = 'mock'
   let barsCount = 0
@@ -703,18 +762,21 @@ export async function POST(req: NextRequest) {
       throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
     }
 
-    // 4. 뉴스 + 실적 + 이전 전략 이력 병렬 fetch → 프롬프트 조립
-    const [news, earnings, previousHistory] = await Promise.all([
+    // 4. 뉴스 + 실적 + 이전 전략 이력 + 시장 지수 병렬 fetch → 프롬프트 조립
+    const isKR = /^\d{6}$/.test(ticker)
+    const [news, earnings, previousHistory, fetchedRegime] = await Promise.all([
       fetchYahooNews(ticker),
       fetchEarnings(ticker),
       userId ? getStrategyHistory(userId, ticker) : Promise.resolve(null),
+      getMarketRegime(isKR),
     ])
+    marketRegime = fetchedRegime
 
     const previousContext = previousHistory
-      ? buildPreviousContext(previousHistory, snap, /^\d{6}$/.test(ticker))
+      ? buildPreviousContext(previousHistory, snap, isKR)
       : ''
 
-    const prompt = buildPrompt(ticker, snap, news, earnings, previousContext)
+    const prompt = buildPrompt(ticker, snap, news, earnings, previousContext, marketRegime)
 
     // 5. Gemini REST API 호출
     const response = await fetch(
@@ -755,6 +817,15 @@ export async function POST(req: NextRequest) {
     // 6. Gemini 응답 파싱 및 결과 구조화
     const strategy = parseStrategyResponse(rawText, ticker)
 
+    // 시장 하락장이면 signal 한 단계 다운그레이드 (Gemini 무시 방어)
+    strategy.signal = applyMarketRegimeFilter(strategy.signal, marketRegime)
+    if (marketRegime?.regime === 'bear') {
+      const bearRisk = `${marketRegime.label} MA20 하향 이탈 (${marketRegime.pctFromMa20}%) — 시장 전반 하락 리스크`
+      if (!strategy.risks.some(r => r.includes('MA20 하향 이탈'))) {
+        strategy.risks.unshift(bearRisk)
+      }
+    }
+
     // 7. 전략 이력 저장 (로그인 사용자만)
     if (userId) {
       await upsertStrategyHistory(userId, ticker, {
@@ -770,6 +841,7 @@ export async function POST(req: NextRequest) {
       snapshot: snap,
       dataSource: source,
       barsCount: barsCount,
+      marketRegime,
     }
     setCachedStrategy(ticker, responseData)
     return NextResponse.json(responseData)
@@ -803,11 +875,20 @@ export async function POST(req: NextRequest) {
 
     const strategy = generateRuleBasedStrategy(ticker, fallbackSnap)
 
+    strategy.signal = applyMarketRegimeFilter(strategy.signal, marketRegime)
+    if (marketRegime?.regime === 'bear') {
+      const bearRisk = `${marketRegime.label} MA20 하향 이탈 (${marketRegime.pctFromMa20}%) — 시장 전반 하락 리스크`
+      if (!strategy.risks.some(r => r.includes('MA20 하향 이탈'))) {
+        strategy.risks.unshift(bearRisk)
+      }
+    }
+
     return NextResponse.json({
       strategy,
       snapshot: fallbackSnap,
       dataSource: source,
       barsCount: barsCount,
+      marketRegime,
       fallbackMode: true,
       errorMsg: e.message
     })
