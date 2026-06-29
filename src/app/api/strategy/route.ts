@@ -757,7 +757,7 @@ export async function POST(req: NextRequest) {
 
     // 7. 전략 이력 저장 (로그인 사용자만)
     if (userId) {
-      upsertStrategyHistory(userId, ticker, {
+      await upsertStrategyHistory(userId, ticker, {
         signal:   strategy.signal,
         summary:  strategy.summary,
         price:    snap.close,

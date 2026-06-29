@@ -127,19 +127,37 @@ async function fetchFromKoreaInvestment(ticker: string): Promise<OHLCVBar[]> {
 
 // ─── 종목명 조회 (Yahoo Finance) ─────────────────────────────────
 async function fetchStockName(ticker: string): Promise<string | undefined> {
-  try {
-    const isKr = ticker.length === 6 && /^\d/.test(ticker) && /^[A-Z0-9]+$/i.test(ticker)
-    const symbol = isKr ? `${ticker}.KS` : ticker
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
-    )
-    const json = await res.json()
-    const meta = json.chart?.result?.[0]?.meta
-    return meta?.shortName ?? meta?.longName ?? undefined
-  } catch {
-    return undefined
+  const isKr = ticker.length === 6 && /^\d/.test(ticker) && /^[A-Z0-9]+$/i.test(ticker)
+  if (!isKr) {
+    try {
+      const res = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
+      )
+      const json = await res.json()
+      const meta = json.chart?.result?.[0]?.meta
+      return meta?.shortName ?? meta?.longName ?? undefined
+    } catch {
+      return undefined
+    }
   }
+
+  // 국내 종목: KS(코스피) 먼저 시도, 실패 시 KQ(코스닥) 재시도
+  for (const suffix of ['.KS', '.KQ']) {
+    try {
+      const res = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}${suffix}?interval=1d&range=1d`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
+      )
+      const json = await res.json()
+      const meta = json.chart?.result?.[0]?.meta
+      const name = meta?.shortName ?? meta?.longName
+      if (name) return name
+    } catch {
+      // 다음 suffix 시도
+    }
+  }
+  return undefined
 }
 
 // ─── 퍼블릭 진입점 ───────────────────────────────────────────────
