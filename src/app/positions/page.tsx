@@ -6,6 +6,7 @@ import AuthGuard from '@/components/AuthGuard'
 import PriceSpectrumBar from '@/components/PriceSpectrumBar'
 import type { Position } from '@/types/stock'
 import type { PriceData, ExtInfo } from '@/types/price'
+import { useRefreshTick } from '@/hooks/useRefreshTick'
 
 // ─── 유틸 ────────────────────────────────────────────────────────
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
@@ -27,6 +28,7 @@ const SIGNAL_META: Record<string, { label: string; color: string; bg: string }> 
 function usePositions() {
   const [positions, setPositions] = useState<Position[]>([])
   const [prices,    setPrices]    = useState<Record<string, PriceData | null>>({})
+  const tick = useRefreshTick()
 
   const load = useCallback(async () => {
     try {
@@ -50,9 +52,7 @@ function usePositions() {
       } catch {}
     }
     doFetch()
-    const id = setInterval(doFetch, 5 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [positions])
+  }, [positions, tick])
 
   const close = useCallback(async (id: string) => {
     await fetch(`/api/positions?id=${id}`, { method: 'DELETE' })

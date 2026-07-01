@@ -1,11 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
 import type { QuoteData } from '@/app/api/quotes/route'
+import { useRefreshTick } from './useRefreshTick'
 
 export type WatchQuotes = Record<string, QuoteData | null>
 
 export function useWatchlistData(tickers: string[]) {
   const [quotes, setQuotes] = useState<WatchQuotes>({})
+  const tick = useRefreshTick()
   const key = tickers.join(',')
 
   useEffect(() => {
@@ -19,10 +21,9 @@ export function useWatchlistData(tickers: string[]) {
       } catch {}
     }
     doFetch()
-    const id = setInterval(doFetch, 5 * 60 * 1000)
-    return () => { ctrl.abort(); clearInterval(id) }
+    return () => ctrl.abort()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
+  }, [key, tick])
 
   return { quotes }
 }

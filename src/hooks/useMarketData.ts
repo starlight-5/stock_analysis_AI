@@ -1,9 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
 import type { MarketData } from '@/types/market'
+import { useRefreshTick } from './useRefreshTick'
 
 export function useMarketData(): MarketData | null {
   const [market, setMarket] = useState<MarketData | null>(null)
+  const tick = useRefreshTick()
+
   useEffect(() => {
     let isMounted = true
     const ctrl = new AbortController()
@@ -15,8 +18,7 @@ export function useMarketData(): MarketData | null {
       } catch {}
     }
     doFetch()
-    const id = setInterval(doFetch, 5 * 60 * 1000)
-    return () => { isMounted = false; ctrl.abort(); clearInterval(id) }
-  }, [])
+    return () => { isMounted = false; ctrl.abort() }
+  }, [tick])
   return market
 }
