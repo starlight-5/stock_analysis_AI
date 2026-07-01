@@ -4,11 +4,9 @@
  * Vercel Cron 등과 연동하여 주기적 배치 작업으로 호출된다.
  */
 import { NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
-import path from 'path'
+import { prisma } from '@/lib/prisma'
 import type { Position } from '@/types/stock'
 
-const DB_PATH      = path.join(process.cwd(), 'data', 'positions.json')
 const WEBHOOK_URL  = process.env.DISCORD_WEBHOOK_URL ?? ''
 
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
@@ -52,10 +50,29 @@ export async function GET() {
     )
   }
 
-  let positions: Position[] = []
-  try { positions = JSON.parse(await fs.readFile(DB_PATH, 'utf-8')) } catch {}
+  // DB에서 활성화 상태인 모든 포지션을 가져옴
+  const rows = await prisma.position.findMany({
+    where: { status: 'active' },
+  })
 
-  const active = positions.filter(p => p.status === 'active')
+  const active: Position[] = rows.map((row) => ({
+    id:             row.id,
+    ticker:         row.ticker,
+    name:           row.name,
+    registeredAt:   row.registeredAt.toISOString(),
+    signal:         row.signal as Position['signal'],
+    summary:        row.summary,
+    entryType:      row.entryType as 'lump' | 'split',
+    entries:        row.entries as Position['entries'],
+    stopLoss:       row.stopLoss,
+    stopLossReason: row.stopLossReason,
+    targets:        row.targets as Position['targets'],
+    risks:          row.risks as Position['risks'],
+    holding:        row.holding as unknown as Position['holding'] ?? undefined,
+    status:         row.status as 'active' | 'closed',
+    closedAt:       row.closedAt?.toISOString(),
+  }))
+
   if (!active.length) {
     return NextResponse.json({ ok: true, sent: false, reason: '활성 포지션 없음' })
   }
