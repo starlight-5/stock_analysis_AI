@@ -170,12 +170,16 @@ interface Props {
   isFallback: boolean
   fromCache: boolean
   fromDB?: boolean
+  livePrice?: number | null
+  liveExt?: import('@/types/price').ExtInfo | null
   onAnalyze: (entryPrice?: number) => void
   onForceRefresh: (entryPrice?: number) => void
 }
 
 export default function StrategyPanel({
-  ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, fromDB, onAnalyze, onForceRefresh,
+  ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, fromDB,
+  livePrice, liveExt,
+  onAnalyze, onForceRefresh,
 }: Props) {
   const [showRaw,          setShowRaw]          = useState(false)
   const [registering,      setRegistering]      = useState(false)
@@ -397,10 +401,28 @@ export default function StrategyPanel({
           <PriceSpectrumBar
             stopLoss={strategy.buyStrategy.stopLoss}
             entries={strategy.buyStrategy.entries}
-            currentPrice={snapshot.close}
+            currentPrice={livePrice ?? snapshot.close}
             targets={strategy.sellStrategy.targets}
             isKR={isKR}
           />
+
+          {/* 실시간 현재가 / 시간외 */}
+          {livePrice != null && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>
+                {formatPrice(livePrice, isKR)}
+              </span>
+              {liveExt && (
+                <span style={{
+                  fontSize: 11,
+                  color: liveExt.change >= 0 ? 'var(--color-positive-dark)' : 'var(--color-negative-dark)',
+                }}>
+                  {liveExt.type === 'pre' ? '장전' : '시간외'} {formatPrice(liveExt.price, isKR)}{' '}
+                  {liveExt.changePct >= 0 ? '+' : ''}{liveExt.changePct.toFixed(2)}%
+                </span>
+              )}
+            </div>
+          )}
 
           {/* 지표 스냅샷 */}
           <SnapshotGrid snap={snapshot} isKR={isKR} />

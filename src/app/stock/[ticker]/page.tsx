@@ -6,6 +6,8 @@ import StockChart from '@/components/StockChart'
 import StrategyPanel from '@/components/StrategyPanel'
 import IndicatorExplainer from '@/components/IndicatorExplainer'
 import type { OHLCVBar, Indicators, StrategyResult, IndicatorSnapshot } from '@/types/stock'
+import type { PriceData } from '@/types/price'
+import { useRefreshTick } from '@/hooks/useRefreshTick'
 
 function deriveSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
   const last = (arr: (number | null)[]) => arr[arr.length - 1] ?? null
@@ -63,6 +65,20 @@ export default function StockDetailPage() {
   const [isFallback, setIsFallback]   = useState(false)
   const [fromCache, setFromCache]     = useState(false)
   const [fromDB, setFromDB]           = useState(false)
+
+  // ── 실시간 현재가 (5분 tick 동기화) ────────────────────────────
+  const [livePrice, setLivePrice]     = useState<PriceData | null>(null)
+  const tick = useRefreshTick()
+
+  useEffect(() => {
+    if (!ticker) return
+    const ctrl = new AbortController()
+    fetch(`/api/prices?tickers=${ticker}`, { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(data => { if (!ctrl.signal.aborted) setLivePrice(data[ticker] ?? null) })
+      .catch(() => {})
+    return () => ctrl.abort()
+  }, [ticker, tick])
 
   useEffect(() => {
     if (!ticker) return
@@ -233,6 +249,8 @@ export default function StockDetailPage() {
             isFallback={isFallback}
             fromCache={fromCache}
             fromDB={fromDB}
+            livePrice={livePrice?.price ?? null}
+            liveExt={livePrice?.ext ?? null}
             onAnalyze={handleAnalyze}
             onForceRefresh={handleForceRefresh}
           />
