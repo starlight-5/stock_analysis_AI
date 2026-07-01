@@ -33,7 +33,7 @@ function setCache(key: string, data: StockDataResult) {
 }
 
 // ─── 1. Alpaca (US 주식) ─────────────────────────────────────────
-async function fetchFromAlpaca(ticker: string, days = 120): Promise<OHLCVBar[]> {
+async function fetchFromAlpaca(ticker: string, days = 180): Promise<OHLCVBar[]> {
   if (!ALPACA_KEY_ID || !ALPACA_SECRET)
     throw new Error('ALPACA_API_KEY_ID 또는 ALPACA_SECRET_KEY 미설정')
 
@@ -71,8 +71,8 @@ async function fetchFromKoreaInvestment(ticker: string): Promise<OHLCVBar[]> {
   // 날짜 헬퍼
   const toYMD = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
   const today  = toYMD(new Date())
-  const past120 = toYMD(new Date(Date.now() - 120 * 86400000))
-  const past60  = toYMD(new Date(Date.now() - 60  * 86400000))
+  const past180 = toYMD(new Date(Date.now() - 180 * 86400000))
+  const past60  = toYMD(new Date(Date.now() -  60 * 86400000))
 
   // 공통 fetch — tr_cont: '' (첫 페이지), 'N' (다음 없음 시 자동 종료)
   async function fetchPage(dateFrom: string, dateTo: string): Promise<OHLCVBar[]> {
@@ -122,7 +122,7 @@ async function fetchFromKoreaInvestment(ticker: string): Promise<OHLCVBar[]> {
   // 최신 60일 + 그 이전 60일 병렬 조회 → 최대 120개
   const [newer, older] = await Promise.all([
     fetchPage(past60,  today),
-    fetchPage(past120, past60),
+    fetchPage(past180, past60),
   ])
 
   // 합산 후 날짜순 정렬, 중복 제거 (경계일 중복 가능)
@@ -173,7 +173,7 @@ async function fetchStockName(ticker: string): Promise<string | undefined> {
 }
 
 // ─── 퍼블릭 진입점 ───────────────────────────────────────────────
-export async function fetchStockData(ticker: string, days = 120): Promise<StockDataResult> {
+export async function fetchStockData(ticker: string, days = 180): Promise<StockDataResult> {
   const cacheKey = `stock:${ticker}:${days}`
   const cached = getCached(cacheKey)
   if (cached) return cached

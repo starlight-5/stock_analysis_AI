@@ -272,10 +272,10 @@ ${volatilityBlock}
    - BB 폭 비율 ≥ 1.5 (급팽창 중) + 거래량 급증 → 추세 하락 가능성 → 평균 회귀 가정 보류, 관망 우선
 4. 목표가 근거 규칙 (가장 중요):
    - targets의 reason은 반드시 구체적인 기술적 레벨을 명시할 것
-     예시 (O): "MA60(${fmtPrice(snap.ma60)}) 저항선 도달", "볼린저 밴드 상단(${fmtPrice(snap.bbUpper)}) 저항", "MA120(${fmtPrice(snap.ma120)}) 장기 저항선"
+     예시 (O): "MA60(${fmtPrice(snap.ma60)}) 저항선 도달", "볼린저 밴드 상단(${fmtPrice(snap.bbUpper)}) 저항", "MA20(${fmtPrice(snap.ma20)}) 단기 저항선"
      예시 (X): "+5% 수익 실현 구간", "+12% 목표가", "단기 익절 구간" — 단순 수익률 표기는 근거가 아니므로 절대 금지
    - 1차 목표가는 가능하면 MA60(${fmtPrice(snap.ma60)}) 또는 BB 중심선(${fmtPrice(snap.bbMid)}) 근처로 설정
-   - 2차 목표가는 MA120(${fmtPrice(snap.ma120)}) 또는 BB 상단(${fmtPrice(snap.bbUpper)}) 근처로 설정
+   - 2차 목표가는 MA60(${fmtPrice(snap.ma60)}) 또는 BB 상단(${fmtPrice(snap.bbUpper)}) 근처로 설정
 4. 손절선: MA20(${fmtPrice(snap.ma5 != null && snap.ma20 != null ? snap.ma20 : null)}) 또는 BB 하단(${fmtPrice(snap.bbLower)}) 등 실제 지지선 기준으로 설정
 5. split 시 entries 2개 이상, ratio 합계 정확히 100
 6. 모든 price 값은 ${priceUnit}로 출력 (문자열 아닌 숫자)
