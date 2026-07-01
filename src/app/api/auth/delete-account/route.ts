@@ -1,3 +1,8 @@
+/**
+ * DELETE /api/auth/delete-account
+ * 로그인한 사용자의 탈퇴(계정 및 관련 접근 요청 데이터 삭제)를 수행하는 엔드포인트.
+ * 관리자 계정은 탈퇴할 수 없다.
+ */
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

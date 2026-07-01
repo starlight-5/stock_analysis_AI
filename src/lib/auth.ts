@@ -1,3 +1,11 @@
+/**
+ * NextAuth 설정
+ *
+ * - Credentials (email/password) + Google OAuth 지원
+ * - 세션: JWT 기반
+ * - signIn 콜백에서 관리자 여부·차단 여부·DB 승인 여부를 순서대로 확인
+ * - jwt/session 콜백에서 id·isAdmin을 토큰/세션에 주입
+ */
 import type { NextAuthOptions } from 'next-auth'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import GoogleProvider from 'next-auth/providers/google'
@@ -21,6 +29,7 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
+        // DB에서 유저 조회 후 bcrypt로 비밀번호 검증
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
         })

@@ -1,3 +1,8 @@
+/**
+ * GET /api/positions/notify
+ * 등록된 전체 활성 포지션을 대상으로 일일 가격 리포트를 작성하여 Discord 채널에 웹훅으로 전송하는 엔드포인트.
+ * Vercel Cron 등과 연동하여 주기적 배치 작업으로 호출된다.
+ */
 import { NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
 import path from 'path'

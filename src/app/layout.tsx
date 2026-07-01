@@ -1,3 +1,10 @@
+/**
+ * RootLayout
+ * Next.js App Router의 최상위 레이아웃 컴포넌트.
+ * - globals.css를 통해 테마 변수 및 글로벌 스타일 적용
+ * - SessionProvider로 NextAuth 세션 컨텍스트 주입
+ * - Header 및 BottomNav(모바일 하단 바)를 공통 레이아웃으로 설정
+ */
 import './globals.css'
 import SessionProvider from '@/components/SessionProvider'
 import Header from '@/components/Header'

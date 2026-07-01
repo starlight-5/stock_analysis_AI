@@ -1,4 +1,9 @@
 'use client'
+/**
+ * useRankings
+ * 미국/한국 종목 랭킹(거래량·거래대금 순위)를 /api/rankings에서 가져오는 훅.
+ * 탭 전환 시 데이터 초기화 + 스피너, 5분마다 백그라운드 갱신(기존 데이터 유지).
+ */
 import { useEffect, useState } from 'react'
 import type { MarketTab } from '@/types/market'
 import type { RankingItem } from '@/app/api/rankings/route'

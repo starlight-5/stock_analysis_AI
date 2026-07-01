@@ -1,3 +1,12 @@
+/**
+ * 주식 데이터 통합 데이터소스 모듈
+ *
+ * 미국 주식: Alpaca Data API (1d bars) 호출
+ * 한국 주식: 한국투자증권 UAPI (국내주식기간별일봉) 호출
+ *
+ * globalThis를 사용해 메모리에 데이터를 캐싱하여 불필요한 API 호출을 줄인다.
+ * (현재는 CACHE_TTL_MS가 0이므로 실제 캐싱은 하지 않고 항상 실시간 조회하도록 설정됨)
+ */
 import type { OHLCVBar, StockDataResult, DataSource } from '@/types/stock'
 import { getKIToken, KI_BASE, KI_KEY, KI_SECRET } from '@/lib/kisToken'
 
@@ -5,17 +14,20 @@ const ALPACA_KEY_ID = process.env.ALPACA_API_KEY_ID ?? ''
 const ALPACA_SECRET = process.env.ALPACA_SECRET_KEY ?? ''
 
 // ─── 캐시 ────────────────────────────────────────────────────────
+// globalThis를 통해 서버리스 인스턴스 환경 내에서 단일 캐시 맵을 유지한다.
 ;(globalThis as any).__stockCache ??= new Map()
 const cache: Map<string, { data: StockDataResult; expiresAt: number }> =
   (globalThis as any).__stockCache
 const CACHE_TTL_MS = 0  // 현재가는 캐시하지 않음
 
+/** 캐시에서 유효한 데이터를 가져옴 (만료된 경우 삭제 후 null 반환) */
 function getCached(key: string): StockDataResult | null {
   const entry = cache.get(key)
   if (!entry) return null
   if (Date.now() > entry.expiresAt) { cache.delete(key); return null }
   return entry.data
 }
+/** 데이터를 메모리 캐시에 적재 */
 function setCache(key: string, data: StockDataResult) {
   cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS })
 }

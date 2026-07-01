@@ -1,3 +1,9 @@
+/**
+ * GET /api/quotes?tickers=AAPL,005930
+ * 관심종목의 실시간 현재가, 변동액, 변동률을 콤마(,)로 구분된 티커 단위로 일괄 조회하는 엔드포인트.
+ * 한국 주식(숫자 6자리)은 Yahoo Finance 조회 규격(.KS)으로 자동 변환한다.
+ * 현재 CACHE_TTL은 0으로 실시간 조회를 수행한다.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 
 export type QuoteData = {

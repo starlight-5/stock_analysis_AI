@@ -1,4 +1,10 @@
 'use client'
+/**
+ * TickerIcon
+ * 주식 종목 아이콘을 표시하는 컴포넌트.
+ * 외부 이미지 URL을 먼저 시도하고, 실패 시 티커 약자(4자) + 해시 컈러로 대체.
+ * 한국: toss.im CDN / 미국: financialmodelingprep.com CDN 사용.
+ */
 import { useState } from 'react'
 
 const ICON_COLORS = [
@@ -8,6 +14,7 @@ const ICON_COLORS = [
 
 export const IS_KR_RE = /^\d{6}$/
 
+/** 티커 문자열을 해시하여 ICON_COLORS 중 하나를 결정적으로 반환. 같은 티커는 항상 같은 색상. */
 export function colorFor(ticker: string): string {
   let hash = 5381
   for (let i = 0; i < ticker.length; i++) {

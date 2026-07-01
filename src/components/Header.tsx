@@ -1,4 +1,9 @@
 'use client'
+/**
+ * Header
+ * 앱 상단 고정 헤더. 로고, 현재 사용자 이메일, 설정/로그아웃 드롭다운을 포함한다.
+ * 관리자 계정에는 /admin 링크를 추가로 표시한다.
+ */
 import { useSession, signOut } from 'next-auth/react'
 import { useState } from 'react'
 

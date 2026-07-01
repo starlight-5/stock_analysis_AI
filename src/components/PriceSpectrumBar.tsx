@@ -1,4 +1,10 @@
 'use client'
+/**
+ * PriceSpectrumBar
+ * 손절가·진입가(들)·현재가·목표가를 하나의 가격 스펙트럼 바로 시각화하는 컴포넌트.
+ * 수평 위치(좌우 8% 패딩 포함)를 퍼센트로 계산해 레이아웃하며,
+ * 리스크/리워드 비율을 직관적으로 파악할 수 있다.
+ */
 
 function formatPrice(price: number, isKR: boolean): string {
   return isKR

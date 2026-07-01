@@ -1,4 +1,10 @@
 'use client'
+/**
+ * useWatchlist
+ * 관심종목 목록을 /api/watchlist에서 가져오고, 추가/삭제 CRUD를 제공하는 훅.
+ * 로그인 사용자의 관심종목이 없으면 DEFAULT_WATCHLIST(5개 대형 해외주) 를 표시한다.
+ * add()는 Promise<WatchlistItem | null>를 반환해 실패 시 호출측에서 에러 피드백이 가능하다.
+ */
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import type { WatchlistItem } from '@/types/stock'
 

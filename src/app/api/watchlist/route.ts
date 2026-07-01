@@ -1,3 +1,10 @@
+/**
+ * GET/POST/DELETE /api/watchlist
+ * 사용자의 관심종목(Watchlist)을 관리하는 엔드포인트.
+ * - GET: 로그인 사용자의 모든 관심종목을 역순으로 조회
+ * - POST: 신규 관심종목 등록 (이미 있는 경우 에러 반환)
+ * - DELETE: 관심종목에서 특정 티커 제거
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

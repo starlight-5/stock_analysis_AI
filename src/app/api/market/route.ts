@@ -1,8 +1,14 @@
+/**
+ * GET /api/market
+ * NASDAQ, S&P 500, VIX, USD/KRW 환율 지수를 Yahoo Finance API로 조회하여 반환하는 엔드포인트.
+ * 잦은 외부 요청으로 인한 차단 및 속도 저하를 방지하기 위해 5분 인메모리 캐싱을 적용한다.
+ */
 import { NextResponse } from 'next/server'
 
 const INDEX_SYMBOLS = ['^IXIC', '^GSPC', '^VIX', 'USDKRW=X']
-const TTL_MS = 5 * 60 * 1000
+const TTL_MS = 5 * 60 * 1000 // 5분 캐시 만료시간
 
+// globalThis에 캐시 객체를 할당하여 개발 서버 HMR 환경 및 서버리스 인스턴스 웜 상태에서 데이터 재사용
 ;(globalThis as any).__marketCache ??= { data: null, exp: 0 }
 const cache: { data: object | null; exp: number } = (globalThis as any).__marketCache
 

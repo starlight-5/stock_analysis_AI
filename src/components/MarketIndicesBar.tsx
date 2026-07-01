@@ -1,4 +1,9 @@
 'use client'
+/**
+ * MarketIndicesBar
+ * 주요 지수(NASDAQ, S&P 500, VIX, USD/KRW)와 AI 시장 분석요약을 표시하는 컴포넌트.
+ * VIX 수준과 NASDAQ 등락률을 조합해 시장 감성(우려·중립·낙관)을 규칙 기반으로 산정한다.
+ */
 import { useMemo, memo } from 'react'
 import type { MarketData } from '@/types/market'
 import SkeletonBox from '@/components/SkeletonBox'

@@ -1,3 +1,8 @@
+/**
+ * POST /api/auth/request-access
+ * 비인가 사용자가 대시보드 접근 요청을 발송할 때 처리하는 엔드포인트.
+ * DB에 AccessRequest를 pending으로 등록(이미 있는 경우 갱신)하고, Discord 웹훅으로 알림을 전송한다.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 

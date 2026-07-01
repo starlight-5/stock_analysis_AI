@@ -1,4 +1,11 @@
 'use client'
+/**
+ * SearchBar
+ * 종목 검색 입력 + 자동완성 드롭다운 컴포넌트.
+ * /api/search에 debounce 없이 즉시 호출하며 AbortController로 이전 요청을 취소한다.
+ * 한국 종목(6자리 숫자.KS/.KQ)은 .KS/.KQ 접미사를 제거 후 라우팅한다.
+ * 키보드(↑↓Enter)로 드롭다운을 탐색할 수 있다.
+ */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'

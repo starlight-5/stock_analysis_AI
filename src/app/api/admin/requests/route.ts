@@ -1,3 +1,9 @@
+/**
+ * GET/PATCH /api/admin/requests
+ * 대시보드 접근 요청(AccessRequest)을 관리자 계정이 확인하고 승인/거부하는 엔드포인트.
+ * - GET: 모든 접근 요청 목록 조회 (요청일 역순)
+ * - PATCH: 특정 요청의 상태(approved/rejected)를 업데이트
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

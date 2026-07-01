@@ -1,3 +1,7 @@
+/**
+ * GET /api/stock?ticker=AAPL
+ * 지정한 종목의 최근 일봉 가격 데이터(bars)와 보조지표 계산 결과(indicators)를 함께 가져오는 엔드포인트.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators } from '@/lib/indicators'

@@ -1,3 +1,8 @@
+/**
+ * GET /api/search?q=검색어
+ * Yahoo Finance Search API를 통해 미국/한국 종목을 키워드로 검색하는 엔드포인트.
+ * 최대 10개의 검색 후보군 중 티커와 이름이 있는 상위 8개 결과를 SearchResult 규격으로 반환한다.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 
 export type SearchResult = {

@@ -1,4 +1,10 @@
 'use client'
+/**
+ * BottomNav
+ * 모바일 화면 하단에 고정되는 내비게이션 바.
+ * 현재 경로(pathname)에 따라 활성 탭을 강조하며,
+ * 세션 상태에 따라 로그인/로그아웃 항목을 조건부 표시한다.
+ */
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'

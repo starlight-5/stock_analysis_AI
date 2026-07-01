@@ -1,4 +1,11 @@
 'use client'
+/**
+ * StockChart
+ * 120일 OHLCV 봉 데이터와 기술적 지표(RSI, MACD, 볼린저밴드, 이동평균선, 거래량)를
+ * Recharts 기반의 복합 차트로 렌더링하는 컴포넌트.
+ * 탭(가격/RSI/MACD/볼린저)으로 차트 종류를 전환하며,
+ * 전략 패널에서 내려준 매수·매도·손절 레벨을 ReferenceLine으로 오버레이한다.
+ */
 
 import { useState, useMemo } from 'react'
 import {

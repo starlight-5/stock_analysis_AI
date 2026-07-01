@@ -1,4 +1,11 @@
 'use client'
+/**
+ * RankingTable
+ * 미국/한국 종목 랭킹(거래량·거래대금 순위)을 테이블로 표시하는 컴포넌트.
+ * 하트 버튼으로 관심종목 추가, 행 클릭으로 종목 상세 페이지 이동,
+ * Skeleton shimmer로 로딩 상태를 처리한다.
+ * React.memo로 랭킹 행 단위 리렌더를 최소화한다.
+ */
 import { useState, useCallback, memo } from 'react'
 import TickerIcon from '@/components/TickerIcon'
 import SkeletonBox from '@/components/SkeletonBox'

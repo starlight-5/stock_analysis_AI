@@ -1,4 +1,19 @@
 'use client'
+/**
+ * HomePage (대시보드 메인 페이지)
+ *
+ * 주요 구조:
+ *   - AuthGuard: 로그인 세션 필수 처리
+ *   - fixed header: MarketStatusBar(스크롤 감지하여 접힘) + 검색 바를 포함한 header
+ *   - MarketIndicesBar: 주요 지수 및 감성 요약
+ *   - TrendingSectorsSection: Gemini 추천 뜨는 섹터
+ *   - 메인 그리드 레이아웃:
+ *     - 왼쪽: RankingTable (미국/한국 랭킹 순위 및 관심종목 추가 버튼)
+ *     - 오른쪽: WatchlistPanel (사용자 관심종목 및 실시간 시세 조회)
+ *
+ * 시세 갱신:
+ *   - useRefreshTick을 통해 시계 5분 단위에 맞추어 모든 시세(지수, 관심종목, 랭킹)가 동시에 갱신됨
+ */
 
 import { useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'

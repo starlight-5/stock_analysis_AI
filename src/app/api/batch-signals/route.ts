@@ -1,3 +1,8 @@
+/**
+ * POST /api/batch-signals
+ * 여러 주식 티커들을 받아 각 종목의 RSI 및 볼린저밴드 기준 기술적 매매 신호(Signal)를 일괄 판별하는 엔드포인트.
+ * 외부 API 쿼터 절약을 위해 30분의 캐싱(인메모리)을 적용한다.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'

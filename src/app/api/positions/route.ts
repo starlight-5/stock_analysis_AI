@@ -1,3 +1,12 @@
+/**
+ * GET/POST/PATCH/DELETE /api/positions
+ * 사용자의 활성 포지션을 등록하고, 관리하는 엔드포인트.
+ * - GET: 로그인 사용자의 전체 포지션 조회
+ * - POST: 신규 포지션 등록 (기존 활성 포지션이 있는 경우 중복 등록 차단 또는 덮어쓰기 유도)
+ * - PATCH: 포지션 목표가/손절가 변경 또는 포지션 종료 처리
+ * - DELETE: 포지션 강제 삭제
+ * - 신규 등록 및 변경 시 Discord 알림 전송 처리 수행
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

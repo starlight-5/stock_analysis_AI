@@ -1,3 +1,16 @@
+/**
+ * 기술적 지표 계산 모듈
+ *
+ * 제공하는 지표:
+ *   - SMA (단순 이동평균) / EMA (지수 이동평균)
+ *   - RSI (Wilder's Smoothed RSI)
+ *   - MACD (MACD Line, Signal Line, Histogram)
+ *   - Bollinger Bands (Upper, Mid, Lower 및 BB Position, BB Width Ratio)
+ *   - Volume Ratio (최근 5일 평균 거래량 / 20일 평균 거래량 비율)
+ *   - Historical Volatility (역사적 변동성 HV20, HV60)
+ *
+ * 수치 계산 후 최종적으로 AI 및 UI 렌더링에 적합한 IndicatorSnapshot 형태로 가공한다.
+ */
 import type { OHLCVBar, Indicators, IndicatorSnapshot } from '@/types/stock'
 
 // ─── 내부 헬퍼 ──────────────────────────────────────────────────

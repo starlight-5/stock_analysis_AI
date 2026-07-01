@@ -1,4 +1,10 @@
 'use client'
+/**
+ * TrendingSectorsSection
+ * ETF 수익률 기준 상위 3개 섹터와 Gemini가 추천한 관련 종목을 표시하는 컴포넌트.
+ * 섹터 칩 클릭 시 해당 섹터로 포커스 전환, 종목 클릭 시 상세 페이지 이동.
+ * React.memo로 데이터가 변경되지 않으면 리렌더를 방지한다.
+ */
 import { memo } from 'react'
 import type { TrendingSectorsData } from '@/app/api/trending-sectors/route'
 

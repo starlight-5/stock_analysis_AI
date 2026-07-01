@@ -1,3 +1,10 @@
+/**
+ * 전략 이력 (StrategyHistory) 보조 함수 모음
+ *
+ * Gemini 분석 시 직전 판정을 DB에 저장하고,
+ * 다음 분석 시 지표 변화를 프롬프트에 포함시켜 AI 정확도를 높인다.
+ * 레코드는 (userId, ticker) 복합 키로 upsert되며, 1 row = 1종목 최신이력.
+ */
 import { prisma } from './prisma'
 import type { IndicatorSnapshot } from '@/types/stock'
 
@@ -9,6 +16,7 @@ export interface StrategyHistoryRecord {
   generatedAt: Date
 }
 
+/** DB에서 특정 사용자·종목의 최신 전략 이력 조회. 없으면 null 반환. */
 export async function getStrategyHistory(
   userId: string,
   ticker: string
@@ -30,6 +38,7 @@ export async function getStrategyHistory(
   }
 }
 
+/** 직전 전략 이력을 DB에 저장(upsert). 실패 시 경고만 하고 진행 방해하지 않음. */
 export async function upsertStrategyHistory(
   userId: string,
   ticker: string,
@@ -48,6 +57,11 @@ export async function upsertStrategyHistory(
   }
 }
 
+/**
+ * 직전 판정과 현재 지표 변화를 Gemini 프롬프트에 삽입할 컨텍스트 문자열 생성.
+ * - 직전 분석이 7일 초과면 빈 문자열 반환 (너무 오래된 데이터 제외)
+ * - RSI, MACD 히스토그램, 거래량, MA 크로스 변화를 한 줄씩 요약
+ */
 export function buildPreviousContext(
   previous: StrategyHistoryRecord,
   currentSnap: IndicatorSnapshot,

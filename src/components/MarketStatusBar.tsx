@@ -1,6 +1,13 @@
 'use client'
+/**
+ * MarketStatusBar
+ * 국내(KST 09:00~15:30) · 해외(ET 09:30~16:00) 개장 여부를
+ * 색상 도트와 '개장/휴장' 배지로 표시하는 헤더 바.
+ * 개장 여부는 useMarketStatus에서 1분마다 갱신되어 prop으로 렬더링된다.
+ */
 import type { MarketTab } from '@/types/market'
 
+/** 단일 시장 개장 시간 + 상태 도트 */
 function StatusDot({ label, hours, active }: { label: string; hours: string; active?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

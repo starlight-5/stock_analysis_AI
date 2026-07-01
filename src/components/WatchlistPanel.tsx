@@ -1,4 +1,11 @@
 'use client'
+/**
+ * WatchlistPanel
+ * 관심종목 목록을 사이드바로 표시하는 컴포넌트.
+ * useWatchlistData가 5분 tick마다 가져온 현재가·등락률을 받아 렌더링하며,
+ * 삭제(×) 버튼과 종목 클릭(상세 페이지 이동)을 제공한다.
+ * React.memo로 quotes가 바뀌지 않은 항목의 불필요한 리렌더를 방지한다.
+ */
 import { useState, useCallback, memo } from 'react'
 import TickerIcon, { IS_KR_RE } from '@/components/TickerIcon'
 import SkeletonBox from '@/components/SkeletonBox'

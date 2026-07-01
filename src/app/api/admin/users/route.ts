@@ -1,3 +1,9 @@
+/**
+ * GET/DELETE /api/admin/users
+ * 가입된 서비스 사용자를 관리자 계정이 조회하거나 추방하는 엔드포인트.
+ * - GET: 전체 가입자 목록 조회
+ * - DELETE: 특정 사용자를 강제 삭제(Cascade 제거)하고, 30일간 동일 이메일로 가입/접근을 차단(BannedEmail 등록)
+ */
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

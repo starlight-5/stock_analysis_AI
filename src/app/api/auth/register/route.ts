@@ -1,3 +1,8 @@
+/**
+ * POST /api/auth/register
+ * 신규 회원의 Credentials 이메일 가입을 처리하는 엔드포인트.
+ * 비밀번호 암호화(bcrypt), 차단된 이메일 가입 제한, 중복 이메일 체크 후 User 테이블에 생성한다.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'

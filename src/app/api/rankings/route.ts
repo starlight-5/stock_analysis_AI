@@ -1,3 +1,9 @@
+/**
+ * GET /api/rankings?market=us|kr
+ * 미국(Yahoo Finance Screener) 및 한국(한국투자증권 UAPI 거래량 순위)의
+ * 거래량/거래대금 상위 100종목 정보를 가져와 반환하는 엔드포인트.
+ * 5분 단위 인메모리 캐싱을 적용한다.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getKIToken, KI_BASE, KI_KEY, KI_SECRET } from '@/lib/kisToken'
 

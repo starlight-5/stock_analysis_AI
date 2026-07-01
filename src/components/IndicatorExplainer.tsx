@@ -1,4 +1,10 @@
 'use client'
+/**
+ * IndicatorExplainer
+ * IndicatorSnapshot의 각 지표(RSI, MACD, 볼린저밴드, MA크로스, 거래량, HV, BB폭)를
+ * 사람이 읽기 쉬운 설명 카드로 변환해 차트 아래에 표시하는 컴포넌트.
+ * buildItems()에서 수치 → 상태(과매수/과매도/중립 등) + 해설 문자열로 매핑한다.
+ */
 
 import type { IndicatorSnapshot } from '@/types/stock'
 
