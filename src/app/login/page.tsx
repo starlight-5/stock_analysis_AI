@@ -7,10 +7,10 @@ import Link from 'next/link'
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#131626',
-  border: '1px solid #2D3460',
+  background: 'var(--color-background-tertiary)',
+  border: '1px solid var(--color-border-secondary)',
   borderRadius: 8,
-  color: '#ECEEF8',
+  color: 'var(--color-text-primary)',
   fontSize: 14,
   boxSizing: 'border-box',
   outline: 'none',
@@ -52,10 +52,8 @@ function LoginContent() {
     }
 
     if (result.error === 'AccessDenied') {
-      // 케이스 3: 올바른 계정이지만 허용되지 않은 사용자
       setDenied(true)
     } else {
-      // 케이스 2, 4: 틀린 이메일 또는 비밀번호
       setError('이메일 또는 비밀번호가 올바르지 않습니다.')
     }
     setLoading(false)
@@ -82,42 +80,40 @@ function LoginContent() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#131626',
+      background: 'var(--color-background-tertiary)',
       padding: '20px',
     }}>
       <div style={{
         width: '100%',
         maxWidth: 400,
-        background: '#1C2038',
-        border: '1px solid #2D3460',
+        background: 'var(--color-background-primary)',
+        border: '1px solid var(--color-border-secondary)',
         borderRadius: 12,
         padding: '40px 32px',
       }}>
-        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: '#ECEEF8' }}>
+        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)' }}>
           로그인
         </h1>
-        <p style={{ margin: '0 0 28px', color: '#7A82A8', fontSize: 13 }}>
+        <p style={{ margin: '0 0 28px', color: 'var(--color-text-secondary)', fontSize: 13 }}>
           주식 분석 대시보드에 오신 걸 환영합니다.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>이메일</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>이메일</label>
             <input type="email" value={email} onChange={e => { setEmail(e.target.value); setDenied(false); setError('') }}
               required placeholder="example@email.com" style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>비밀번호</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>비밀번호</label>
             <input type="password" value={password} onChange={e => { setPassword(e.target.value); setDenied(false); setError('') }}
               required placeholder="8자 이상" style={inputStyle} />
           </div>
 
-          {/* 케이스 2, 4: 틀린 자격증명 */}
           {error && (
-            <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>{error}</p>
+            <p style={{ margin: 0, color: 'var(--color-error-text)', fontSize: 13 }}>{error}</p>
           )}
 
-          {/* 케이스 3: 허용되지 않은 사용자 (이메일/비번 로그인) */}
           {denied && !googleDenied && !requested && (
             <div style={{
               background: 'rgba(255,90,90,0.08)',
@@ -128,7 +124,7 @@ function LoginContent() {
               flexDirection: 'column',
               gap: 10,
             }}>
-              <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>
+              <p style={{ margin: 0, color: 'var(--color-error-text)', fontSize: 13 }}>
                 허용되지 않은 사용자입니다.
               </p>
               <button
@@ -137,8 +133,8 @@ function LoginContent() {
                 disabled={reqLoading}
                 style={{
                   padding: '8px 12px',
-                  background: reqLoading ? '#2D3460' : 'rgba(255,90,90,0.15)',
-                  color: '#FF8585',
+                  background: reqLoading ? 'var(--color-border-secondary)' : 'rgba(255,90,90,0.15)',
+                  color: 'var(--color-error-text)',
                   border: '1px solid rgba(255,90,90,0.4)',
                   borderRadius: 6,
                   fontSize: 12,
@@ -152,7 +148,6 @@ function LoginContent() {
             </div>
           )}
 
-          {/* 요청 완료 */}
           {requested && (
             <div style={{
               background: 'rgba(59,110,255,0.08)',
@@ -160,7 +155,7 @@ function LoginContent() {
               borderRadius: 8,
               padding: '12px 14px',
             }}>
-              <p style={{ margin: 0, color: '#5B8BFF', fontSize: 13 }}>
+              <p style={{ margin: 0, color: 'var(--color-accent-light)', fontSize: 13 }}>
                 ✓ 접근 요청이 전송되었습니다. 관리자 승인 후 이용 가능합니다.
               </p>
             </div>
@@ -168,7 +163,7 @@ function LoginContent() {
 
           <button type="submit" disabled={loading} style={{
             padding: '11px',
-            background: loading ? '#2D3460' : '#3B6EFF',
+            background: loading ? 'var(--color-border-secondary)' : 'var(--color-accent-primary)',
             color: '#fff',
             border: 'none', borderRadius: 8,
             fontSize: 14, fontWeight: 600,
@@ -180,12 +175,11 @@ function LoginContent() {
         </form>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
-          <span style={{ color: '#404880', fontSize: 12 }}>또는</span>
-          <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border-secondary)' }} />
+          <span style={{ color: 'var(--color-border-primary)', fontSize: 12 }}>또는</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border-secondary)' }} />
         </div>
 
-        {/* 구글 로그인 — 이미 이메일/비번 계정 존재 */}
         {searchParams.get('error') === 'OAuthAccountNotLinked' && (
           <div style={{
             background: 'rgba(255,160,50,0.08)',
@@ -198,7 +192,6 @@ function LoginContent() {
           </div>
         )}
 
-        {/* 구글 로그인 거부 시 */}
         {googleDenied && !requested && (
           <div style={{
             background: 'rgba(255,90,90,0.08)',
@@ -206,7 +199,7 @@ function LoginContent() {
             borderRadius: 8, padding: '12px 14px',
             display: 'flex', flexDirection: 'column', gap: 10,
           }}>
-            <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>
+            <p style={{ margin: 0, color: 'var(--color-error-text)', fontSize: 13 }}>
               허용되지 않은 Google 계정입니다.
             </p>
             <input
@@ -222,8 +215,8 @@ function LoginContent() {
               disabled={reqLoading || !requestEmail}
               style={{
                 padding: '8px 12px',
-                background: (reqLoading || !requestEmail) ? '#2D3460' : 'rgba(255,90,90,0.15)',
-                color: '#FF8585',
+                background: (reqLoading || !requestEmail) ? 'var(--color-border-secondary)' : 'rgba(255,90,90,0.15)',
+                color: 'var(--color-error-text)',
                 border: '1px solid rgba(255,90,90,0.4)',
                 borderRadius: 6, fontSize: 12, fontWeight: 600,
                 cursor: (reqLoading || !requestEmail) ? 'not-allowed' : 'pointer',
@@ -235,14 +228,13 @@ function LoginContent() {
           </div>
         )}
 
-        {/* 구글 요청 완료 */}
         {googleDenied && requested && (
           <div style={{
             background: 'rgba(59,110,255,0.08)',
             border: '1px solid rgba(59,110,255,0.3)',
             borderRadius: 8, padding: '12px 14px',
           }}>
-            <p style={{ margin: 0, color: '#5B8BFF', fontSize: 13 }}>
+            <p style={{ margin: 0, color: 'var(--color-accent-light)', fontSize: 13 }}>
               ✓ 접근 요청이 전송되었습니다. 관리자 승인 후 이용 가능합니다.
             </p>
           </div>
@@ -264,9 +256,9 @@ function LoginContent() {
           Google로 계속하기
         </button>
 
-        <p style={{ margin: '20px 0 0', textAlign: 'center', color: '#7A82A8', fontSize: 13 }}>
+        <p style={{ margin: '20px 0 0', textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>
           계정이 없으신가요?{' '}
-          <Link href="/register" style={{ color: '#5B8BFF', textDecoration: 'none' }}>회원가입</Link>
+          <Link href="/register" style={{ color: 'var(--color-accent-light)', textDecoration: 'none' }}>회원가입</Link>
         </p>
       </div>
     </div>

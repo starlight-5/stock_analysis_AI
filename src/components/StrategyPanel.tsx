@@ -5,11 +5,11 @@ import type { StrategyResult, IndicatorSnapshot, HoldingGuide } from '@/types/st
 import PriceSpectrumBar from './PriceSpectrumBar'
 
 const SIGNAL_META = {
-  strong_buy:  { label: '강력 매수', bg: '#E1F5EE', color: '#085041', border: '#1D9E75' },
-  buy:         { label: '매수',      bg: '#EAF3DE', color: '#27500A', border: '#639922' },
-  watch:       { label: '관망',      bg: '#FAEEDA', color: '#633806', border: '#EF9F27' },
+  strong_buy:  { label: '강력 매수', bg: '#E1F5EE', color: '#085041', border: 'var(--color-positive-dark)' },
+  buy:         { label: '매수',      bg: '#EAF3DE', color: '#27500A', border: 'var(--color-positive-muted)' },
+  watch:       { label: '관망',      bg: '#FAEEDA', color: '#633806', border: 'var(--color-caution)' },
   sell:        { label: '매도',      bg: '#FAECE7', color: '#712B13', border: '#D85A30' },
-  strong_sell: { label: '강력 매도', bg: '#FCEBEB', color: '#791F1F', border: '#E24B4A' },
+  strong_sell: { label: '강력 매도', bg: '#FCEBEB', color: '#791F1F', border: 'var(--color-negative-dark)' },
 } as const
 
 function SignalBadge({ signal }: { signal: StrategyResult['signal'] }) {
@@ -48,7 +48,7 @@ function HoldingGuideSection({ holding }: { holding: HoldingGuide }) {
       <div style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>최소 {holding.minWeeks}주</span>
-          <span style={{ fontSize: 10, color: '#1D9E75', fontWeight: 600 }}>권장 {holding.targetWeeks}주</span>
+          <span style={{ fontSize: 10, color: 'var(--color-positive-dark)', fontWeight: 600 }}>권장 {holding.targetWeeks}주</span>
           <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>최대 {holding.maxWeeks}주</span>
         </div>
         <div style={{ position: 'relative', height: 4, background: 'var(--color-background-secondary)', borderRadius: 2 }}>
@@ -63,14 +63,14 @@ function HoldingGuideSection({ holding }: { holding: HoldingGuide }) {
           }} />
           <div style={{
             position: 'absolute', left: `${targetPct}%`, transform: 'translateX(-50%)',
-            width: 2, height: 8, top: -2, background: '#1D9E75',
+            width: 2, height: 8, top: -2, background: 'var(--color-positive-dark)',
           }} />
         </div>
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <div><span style={{ color: '#E24B4A', fontWeight: 600 }}>손절 조건  </span>{holding.stopCondition}</div>
-        <div><span style={{ color: '#EF9F27', fontWeight: 600 }}>재검토 조건  </span>{holding.reviewCondition}</div>
+        <div><span style={{ color: 'var(--color-negative-dark)', fontWeight: 600 }}>손절 조건  </span>{holding.stopCondition}</div>
+        <div><span style={{ color: 'var(--color-caution)', fontWeight: 600 }}>재검토 조건  </span>{holding.reviewCondition}</div>
       </div>
     </div>
   )
@@ -108,12 +108,12 @@ function SnapshotGrid({ snap, isKR }: { snap: IndicatorSnapshot; isKR: boolean }
     {
       label: 'RSI (14)', value: snap.rsi?.toFixed(1) ?? 'N/A',
       sub: snap.rsi == null ? '' : snap.rsi < 30 ? '과매도' : snap.rsi > 70 ? '과매수' : '중립',
-      color: snap.rsi == null ? '' : snap.rsi < 30 ? '#1D9E75' : snap.rsi > 70 ? '#E24B4A' : 'var(--color-text-secondary)',
+      color: snap.rsi == null ? '' : snap.rsi < 30 ? 'var(--color-positive-dark)' : snap.rsi > 70 ? 'var(--color-negative-dark)' : 'var(--color-text-secondary)',
     },
     {
       label: 'MACD', value: snap.macd?.toFixed(2) ?? 'N/A',
       sub: snap.histogram == null ? '' : snap.histogram > 0 ? '양전환' : '음전환',
-      color: snap.histogram == null ? '' : snap.histogram > 0 ? '#1D9E75' : '#E24B4A',
+      color: snap.histogram == null ? '' : snap.histogram > 0 ? 'var(--color-positive-dark)' : 'var(--color-negative-dark)',
     },
     {
       label: '볼린저 위치',
@@ -125,12 +125,12 @@ function SnapshotGrid({ snap, isKR }: { snap: IndicatorSnapshot; isKR: boolean }
       label: 'MA 크로스',
       value: ({ golden: '골든', dead: '데드', neutral: '중립' } as Record<typeof snap.maCrossState, string>)[snap.maCrossState],
       sub: ({ golden: '5일>20일', dead: '5일<20일', neutral: '' } as Record<typeof snap.maCrossState, string>)[snap.maCrossState],
-      color: snap.maCrossState === 'golden' ? '#1D9E75' : snap.maCrossState === 'dead' ? '#E24B4A' : 'var(--color-text-secondary)',
+      color: snap.maCrossState === 'golden' ? 'var(--color-positive-dark)' : snap.maCrossState === 'dead' ? 'var(--color-negative-dark)' : 'var(--color-text-secondary)',
     },
     {
       label: '거래량 비율', value: `${snap.volumeRatio.toFixed(2)}x`,
       sub: snap.volumeRatio > 1.5 ? '급증' : snap.volumeRatio < 0.7 ? '급감' : '보통',
-      color: snap.volumeRatio > 1.5 ? '#1D9E75' : 'var(--color-text-secondary)',
+      color: snap.volumeRatio > 1.5 ? 'var(--color-positive-dark)' : 'var(--color-text-secondary)',
     },
     {
       label: '현재가', value: formatPrice(snap.close, isKR),
@@ -170,8 +170,8 @@ interface Props {
   isFallback: boolean
   fromCache: boolean
   fromDB?: boolean
-  onAnalyze: () => void
-  onForceRefresh: () => void
+  onAnalyze: (entryPrice?: number) => void
+  onForceRefresh: (entryPrice?: number) => void
 }
 
 export default function StrategyPanel({
@@ -181,7 +181,19 @@ export default function StrategyPanel({
   const [registering,      setRegistering]      = useState(false)
   const [registerState,    setRegisterState]    = useState<'idle' | 'ok' | 'ok_updated' | 'err'>('idle')
   const [confirmOverwrite, setConfirmOverwrite] = useState<{ id: string; registeredAt: string } | null>(null)
+  const [entryPriceInput,  setEntryPriceInput]  = useState('')
   const isKR = /^\d{6}$/.test(ticker)
+
+  // 빈 문자열 → undefined(미입력), 유효 양수 → number, 그 외 → NaN
+  const parsedEntryPrice: number | undefined = (() => {
+    const raw = entryPriceInput.trim()
+    if (raw === '') return undefined
+    const cleaned = raw.replace(/,/g, '')
+    if (!/^\d+(\.\d+)?$/.test(cleaned)) return NaN  // 문자·특수문자·복수 소수점
+    const n = +cleaned
+    return n > 0 ? n : NaN                           // 0 또는 음수 불가
+  })()
+  const entryPriceInvalid = entryPriceInput.trim() !== '' && (parsedEntryPrice === undefined || isNaN(parsedEntryPrice as number))
 
   const finishWith = (state: typeof registerState) => {
     setRegisterState(state)
@@ -241,27 +253,64 @@ export default function StrategyPanel({
       borderRadius: 12, padding: '20px', height: '100%',
     }}>
       {/* 헤더 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{ticker}</span>
-            {name && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{name}</span>}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{ticker}</span>
+              {name && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{name}</span>}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>AI 매매 전략 · Gemini 분석</div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>AI 매매 전략 · Gemini 분석</div>
+          <button
+            onClick={() => onAnalyze(parsedEntryPrice)}
+            disabled={isLoading}
+            style={{
+              padding: '8px 16px', borderRadius: 8,
+              border: '0.5px solid var(--color-border-secondary)',
+              background: isLoading ? 'var(--color-background-secondary)' : 'var(--color-text-primary)',
+              color: isLoading ? 'var(--color-text-secondary)' : 'var(--color-background-primary)',
+              fontSize: 13, cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'all .15s',
+            }}
+          >
+            {isLoading ? '분석 중…' : '전략 분석'}
+          </button>
         </div>
-        <button
-          onClick={onAnalyze}
-          disabled={isLoading}
-          style={{
-            padding: '8px 16px', borderRadius: 8,
-            border: '0.5px solid var(--color-border-secondary)',
-            background: isLoading ? 'var(--color-background-secondary)' : 'var(--color-text-primary)',
-            color: isLoading ? 'var(--color-text-secondary)' : 'var(--color-background-primary)',
-            fontSize: 13, cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'all .15s',
-          }}
-        >
-          {isLoading ? '분석 중…' : '전략 분석'}
-        </button>
+        {/* 진입가 입력 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+            진입가 (선택)
+          </label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={entryPriceInput}
+            onChange={e => setEntryPriceInput(e.target.value)}
+            placeholder={isKR ? '예: 75000' : '예: 185.50'}
+            style={{
+              flex: 1, padding: '5px 10px', borderRadius: 6,
+              border: `0.5px solid ${entryPriceInvalid ? 'var(--color-error-border)' : 'var(--color-border-secondary)'}`,
+              background: 'var(--color-background-secondary)',
+              color: entryPriceInvalid ? 'var(--color-error-text)' : 'var(--color-text-primary)',
+              fontSize: 12, outline: 'none',
+            }}
+          />
+          {entryPriceInvalid && (
+            <span style={{ fontSize: 10, color: 'var(--color-error-text)', whiteSpace: 'nowrap' }}>
+              숫자만 입력
+            </span>
+          )}
+          {!entryPriceInvalid && typeof parsedEntryPrice === 'number' && snapshot?.close != null && (
+            <span style={{
+              fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+              color: snapshot.close >= parsedEntryPrice
+                ? 'var(--color-success-text, #1D9E75)'
+                : 'var(--color-error-text, #D85A30)',
+            }}>
+              {((snapshot.close - parsedEntryPrice) / parsedEntryPrice * 100).toFixed(2)}%
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 로딩 */}
@@ -326,7 +375,7 @@ export default function StrategyPanel({
             )}
             {(fromCache || fromDB) && (
               <button
-                onClick={onForceRefresh}
+                onClick={() => onForceRefresh(parsedEntryPrice)}
                 disabled={isLoading}
                 style={{
                   fontSize: 11, padding: '1px 8px', borderRadius: 10,
@@ -383,8 +432,8 @@ export default function StrategyPanel({
               background: '#E24B4A08', border: '0.5px solid #E24B4A40',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#E24B4A' }}>🛑 손절선</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: '#E24B4A' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-negative-dark)' }}>🛑 손절선</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-negative-dark)' }}>
                   {formatPrice(strategy.buyStrategy.stopLoss, isKR)}
                 </span>
               </div>
@@ -415,7 +464,7 @@ export default function StrategyPanel({
                 display: 'flex', gap: 8, marginBottom: 6,
                 fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5,
               }}>
-                <span style={{ color: '#EF9F27', flexShrink: 0 }}>▪</span>
+                <span style={{ color: 'var(--color-caution)', flexShrink: 0 }}>▪</span>
                 {risk}
               </div>
             ))}
@@ -433,7 +482,7 @@ export default function StrategyPanel({
                 borderRadius: 8, border: '1px solid #EF9F2755',
                 background: '#EF9F2710', padding: '12px 14px',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#EF9F27', marginBottom: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-caution)', marginBottom: 4 }}>
                   ⚠ 이미 등록된 포지션이 있습니다
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
@@ -459,7 +508,7 @@ export default function StrategyPanel({
                     onClick={handleConfirmOverwrite}
                     style={{
                       flex: 1, padding: '7px 0', borderRadius: 7, border: 'none',
-                      background: '#EF9F27', color: '#fff', fontSize: 12, fontWeight: 700,
+                      background: 'var(--color-caution)', color: '#fff', fontSize: 12, fontWeight: 700,
                       cursor: 'pointer',
                     }}
                   >
@@ -473,9 +522,9 @@ export default function StrategyPanel({
                 disabled={registering || registerState === 'ok' || registerState === 'ok_updated'}
                 style={{
                   width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
-                  background: registerState === 'ok' || registerState === 'ok_updated' ? '#1D9E75'
-                            : registerState === 'err' ? '#E24B4A'
-                            : '#3B6EFF',
+                  background: registerState === 'ok' || registerState === 'ok_updated' ? 'var(--color-positive-dark)'
+                            : registerState === 'err' ? 'var(--color-negative-dark)'
+                            : 'var(--color-accent-primary)',
                   color: '#fff', fontSize: 13, fontWeight: 600,
                   cursor: registering || registerState === 'ok' || registerState === 'ok_updated' ? 'default' : 'pointer',
                   transition: 'background .2s',
@@ -489,7 +538,7 @@ export default function StrategyPanel({
               </button>
             )}
             {(registerState === 'ok' || registerState === 'ok_updated') && (
-              <div style={{ fontSize: 11, color: '#1D9E75', marginTop: 5, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-positive-dark)', marginTop: 5, textAlign: 'center' }}>
                 {registerState === 'ok_updated'
                   ? '기존 포지션이 현재 전략으로 최신화되었습니다'
                   : '메인 페이지 포지션 섹션에서 진행 상황을 확인하세요'}

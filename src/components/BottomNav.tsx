@@ -40,8 +40,8 @@ export default function BottomNav() {
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
       height: 64,
-      background: '#1C2038',
-      borderTop: '1px solid #2D3460',
+      background: 'var(--color-background-primary)',
+      borderTop: '1px solid var(--color-border-secondary)',
       display: 'flex',
       boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
     }}>
@@ -57,12 +57,12 @@ export default function BottomNav() {
               alignItems: 'center', justifyContent: 'center',
               gap: 4, position: 'relative',
               background: 'none',
-              borderTop: `2px solid ${active ? '#3B6EFF' : 'transparent'}`,
-              borderLeft: idx > 0 ? '1px solid #2D3460' : 'none',
+              borderTop: `2px solid ${active ? 'var(--color-accent-primary)' : 'transparent'}`,
+              borderLeft: idx > 0 ? '1px solid var(--color-border-secondary)' : 'none',
               borderRight: 'none',
               borderBottom: 'none',
               cursor: 'pointer',
-              color: active ? '#5B8BFF' : '#7A82A8',
+              color: active ? 'var(--color-accent-light)' : 'var(--color-text-secondary)',
               transition: 'color 0.15s',
             }}
           >
@@ -84,7 +84,7 @@ export default function BottomNav() {
             {tab.badge != null && (
               <span style={{
                 position: 'absolute', top: 10, left: 'calc(50% + 12px)',
-                background: '#FF5A5A', color: '#fff',
+                background: 'var(--color-negative)', color: '#fff',
                 fontSize: 9, fontWeight: 700, lineHeight: 1,
                 padding: '2px 4px', borderRadius: 8, minWidth: 14, textAlign: 'center',
               }}>

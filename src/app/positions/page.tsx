@@ -113,7 +113,7 @@ const PositionCard = memo(function PositionCard({
               background: meta.bg, color: meta.color,
             }}>{meta.label}</span>
             {retPct != null && (
-              <span style={{ fontSize: 13, fontWeight: 700, color: retPct >= 0 ? '#1D9E75' : '#E24B4A' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: retPct >= 0 ? 'var(--color-positive-dark)' : 'var(--color-negative-dark)' }}>
                 {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%
               </span>
             )}
@@ -152,7 +152,7 @@ const PositionCard = memo(function PositionCard({
           {cur != null ? fmtCur(pos.ticker, cur) : '—'}
         </span>
         {ext && (
-          <span style={{ marginLeft: 8, fontSize: 11, color: ext.change >= 0 ? '#1D9E75' : '#E24B4A' }}>
+          <span style={{ marginLeft: 8, fontSize: 11, color: ext.change >= 0 ? 'var(--color-positive-dark)' : 'var(--color-negative-dark)' }}>
             {ext.type === 'pre' ? '장전' : '시간외'} {fmtCur(pos.ticker, ext.price)}{' '}
             {ext.changePct >= 0 ? '+' : ''}{ext.changePct.toFixed(2)}%
           </span>
@@ -181,7 +181,7 @@ const PositionCard = memo(function PositionCard({
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '8px 0', borderBottom: '0.5px solid var(--color-border-tertiary)',
             }}>
-              <div style={{ width: 3, height: 30, borderRadius: 2, background: '#1D9E75', flexShrink: 0 }} />
+              <div style={{ width: 3, height: 30, borderRadius: 2, background: 'var(--color-positive-dark)', flexShrink: 0 }} />
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', flex: 1 }}>
                   {pos.entryType === 'split' ? `${i + 1}차` : '진입가'}
@@ -196,7 +196,7 @@ const PositionCard = memo(function PositionCard({
                   <span style={{
                     fontSize: 10, padding: '2px 7px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap',
                     background: entered ? '#1D9E7520' : 'var(--color-background-secondary)',
-                    color:      entered ? '#1D9E75'   : 'var(--color-text-secondary)',
+                    color:      entered ? 'var(--color-positive-dark)'   : 'var(--color-text-secondary)',
                     border: `0.5px solid ${entered ? '#1D9E7540' : 'var(--color-border-secondary)'}`,
                   }}>
                     {entered ? `✓ 진입 (${dist.toFixed(1)}%)` : `대기 +${dist.toFixed(1)}%`}
@@ -213,9 +213,9 @@ const PositionCard = memo(function PositionCard({
           background: '#E24B4A08', border: '0.5px solid #E24B4A40',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#E24B4A' }}>🛑 손절선</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-negative-dark)' }}>🛑 손절선</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#E24B4A' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-negative-dark)' }}>
                 {fmtCur(pos.ticker, pos.stopLoss)}
               </span>
               {cur != null && (
@@ -242,14 +242,14 @@ const PositionCard = memo(function PositionCard({
           return (
             <div key={i} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{ width: 3, height: 24, borderRadius: 2, background: '#EF9F27', flexShrink: 0 }} />
+                <div style={{ width: 3, height: 24, borderRadius: 2, background: 'var(--color-caution)', flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', flex: 1 }}>{i + 1}차 목표</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
                   {fmtCur(pos.ticker, t.price)}
                 </span>
                 <span style={{
                   fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
-                  color: reached ? '#1D9E75' : 'var(--color-text-secondary)',
+                  color: reached ? 'var(--color-positive-dark)' : 'var(--color-text-secondary)',
                 }}>
                   {reached ? '✓ 달성' : cur != null ? `+${pct.toFixed(1)}% 남음` : ''}
                 </span>
@@ -257,7 +257,7 @@ const PositionCard = memo(function PositionCard({
               <div style={{ height: 3, borderRadius: 2, background: 'var(--color-background-secondary)', overflow: 'hidden', marginLeft: 13 }}>
                 <div style={{
                   height: '100%', borderRadius: 2,
-                  background: reached ? '#1D9E75' : '#EF9F27',
+                  background: reached ? 'var(--color-positive-dark)' : 'var(--color-caution)',
                   width: `${Math.min(100, Math.max(0, 100 - pct))}%`,
                   transition: 'width .4s',
                 }} />
@@ -280,7 +280,7 @@ const PositionCard = memo(function PositionCard({
           watch: '관찰 중', normal: '정상', review: '재검토 필요', over: '기간 초과',
         }
         const statusColor: Record<string, string> = {
-          watch: 'var(--color-text-secondary)', normal: '#1D9E75', review: '#EF9F27', over: '#E24B4A',
+          watch: 'var(--color-text-secondary)', normal: 'var(--color-positive-dark)', review: 'var(--color-caution)', over: 'var(--color-negative-dark)',
         }
         const barColor = statusColor[status]
 
@@ -297,13 +297,13 @@ const PositionCard = memo(function PositionCard({
 
             <div style={{ position: 'relative', height: 4, borderRadius: 2, background: 'var(--color-background-secondary)', marginBottom: 6 }}>
               <div style={{ height: '100%', borderRadius: 2, background: barColor, width: `${holdingBarWidth}%`, transition: 'width 0.6s ease' }} />
-              <div style={{ position: 'absolute', top: -2, left: `${(minWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: '#404880' }} />
-              <div style={{ position: 'absolute', top: -2, left: `${(targetWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: '#7BA3FF' }} />
+              <div style={{ position: 'absolute', top: -2, left: `${(minWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: 'var(--color-border-primary)' }} />
+              <div style={{ position: 'absolute', top: -2, left: `${(targetWeeks / maxWeeks) * 100}%`, width: 1, height: 8, background: 'var(--color-info-text)' }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
               <span>최소 {minWeeks}주</span>
-              <span style={{ color: '#7BA3FF' }}>권장 {targetWeeks}주</span>
+              <span style={{ color: 'var(--color-info-text)' }}>권장 {targetWeeks}주</span>
               <span>최대 {maxWeeks}주</span>
             </div>
 

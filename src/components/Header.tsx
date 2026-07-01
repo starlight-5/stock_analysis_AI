@@ -16,8 +16,8 @@ export default function Header() {
       position: 'fixed',
       top: 0, left: 0, right: 0,
       height: 48,
-      background: '#1C2038',
-      borderBottom: '1px solid #2D3460',
+      background: 'var(--color-background-primary)',
+      borderBottom: '1px solid var(--color-border-secondary)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -25,7 +25,7 @@ export default function Header() {
       zIndex: 100,
       boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
     }}>
-      <span style={{ fontSize: 15, fontWeight: 700, color: '#ECEEF8', letterSpacing: '-0.3px' }}>
+      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px' }}>
         📈 AI 주식 분석 대시보드
       </span>
 
@@ -37,11 +37,11 @@ export default function Header() {
             alignItems: 'center',
             gap: 8,
             background: 'rgba(255,255,255,0.05)',
-            border: '1px solid #404880',
+            border: '1px solid var(--color-border-primary)',
             borderRadius: 20,
             padding: '4px 10px 4px 6px',
             cursor: 'pointer',
-            color: '#ECEEF8',
+            color: 'var(--color-text-primary)',
           }}
         >
           {session.user.image ? (
@@ -50,7 +50,7 @@ export default function Header() {
           ) : (
             <div style={{
               width: 24, height: 24, borderRadius: '50%',
-              background: '#3B6EFF',
+              background: 'var(--color-accent-primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700, color: '#fff',
             }}>
@@ -68,19 +68,19 @@ export default function Header() {
             <div style={{
               position: 'absolute',
               top: 42, right: 0,
-              background: '#1C2038',
-              border: '1px solid #404880',
+              background: 'var(--color-background-primary)',
+              border: '1px solid var(--color-border-primary)',
               borderRadius: 10,
               minWidth: 180,
               zIndex: 120,
               overflow: 'hidden',
               boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2D3460' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#ECEEF8', marginBottom: 2 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border-secondary)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 2 }}>
                   {session.user.name ?? '-'}
                 </div>
-                <div style={{ fontSize: 11, color: '#7A82A8' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
                   {session.user.email}
                 </div>
               </div>
@@ -91,7 +91,7 @@ export default function Header() {
                   padding: '10px 16px',
                   background: 'none',
                   border: 'none',
-                  color: '#FF8585',
+                  color: 'var(--color-error-text)',
                   fontSize: 13,
                   textAlign: 'left',
                   cursor: 'pointer',

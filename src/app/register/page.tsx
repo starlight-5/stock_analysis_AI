@@ -7,10 +7,10 @@ import Link from 'next/link'
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
-  background: '#131626',
-  border: '1px solid #2D3460',
+  background: 'var(--color-background-tertiary)',
+  border: '1px solid var(--color-border-secondary)',
   borderRadius: 8,
-  color: '#ECEEF8',
+  color: 'var(--color-text-primary)',
   fontSize: 14,
   boxSizing: 'border-box',
   outline: 'none',
@@ -58,51 +58,51 @@ export default function RegisterPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#131626',
+      background: 'var(--color-background-tertiary)',
       padding: '20px',
     }}>
       <div style={{
         width: '100%',
         maxWidth: 400,
-        background: '#1C2038',
-        border: '1px solid #2D3460',
+        background: 'var(--color-background-primary)',
+        border: '1px solid var(--color-border-secondary)',
         borderRadius: 12,
         padding: '40px 32px',
       }}>
-        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: '#ECEEF8' }}>
+        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)' }}>
           회원가입
         </h1>
-        <p style={{ margin: '0 0 28px', color: '#7A82A8', fontSize: 13 }}>
+        <p style={{ margin: '0 0 28px', color: 'var(--color-text-secondary)', fontSize: 13 }}>
           계정을 만들어 포지션과 관심종목을 관리하세요.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>이름 (선택)</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>이름 (선택)</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="홍길동" style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>이메일</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>이메일</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               required placeholder="example@email.com" style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>비밀번호</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>비밀번호</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
               required placeholder="8자 이상" style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#7A82A8' }}>비밀번호 확인</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>비밀번호 확인</label>
             <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
               required placeholder="비밀번호 재입력" style={inputStyle} />
           </div>
 
-          {error && <p style={{ margin: 0, color: '#FF8585', fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ margin: 0, color: 'var(--color-error-text)', fontSize: 13 }}>{error}</p>}
 
           <button type="submit" disabled={loading} style={{
             padding: '11px',
-            background: loading ? '#2D3460' : '#3B6EFF',
+            background: loading ? 'var(--color-border-secondary)' : 'var(--color-accent-primary)',
             color: '#fff',
             border: 'none', borderRadius: 8,
             fontSize: 14, fontWeight: 600,
@@ -114,9 +114,9 @@ export default function RegisterPage() {
         </form>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
-          <span style={{ color: '#404880', fontSize: 12 }}>또는</span>
-          <div style={{ flex: 1, height: 1, background: '#2D3460' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border-secondary)' }} />
+          <span style={{ color: 'var(--color-border-primary)', fontSize: 12 }}>또는</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border-secondary)' }} />
         </div>
 
         <button onClick={handleGoogle} style={{
@@ -135,9 +135,9 @@ export default function RegisterPage() {
           Google로 계속하기
         </button>
 
-        <p style={{ margin: '20px 0 0', textAlign: 'center', color: '#7A82A8', fontSize: 13 }}>
+        <p style={{ margin: '20px 0 0', textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>
           이미 계정이 있으신가요?{' '}
-          <Link href="/login" style={{ color: '#5B8BFF', textDecoration: 'none' }}>로그인</Link>
+          <Link href="/login" style={{ color: 'var(--color-accent-light)', textDecoration: 'none' }}>로그인</Link>
         </p>
       </div>
     </div>

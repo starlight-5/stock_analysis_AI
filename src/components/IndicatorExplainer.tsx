@@ -14,11 +14,11 @@ function buildItems(snap: IndicatorSnapshot): ExplainItem[] {
   const rsi = snap.rsi
   const rsiStatus =
     rsi == null ? { s: '데이터 없음', c: 'var(--color-text-secondary)' }
-    : rsi < 30  ? { s: '과매도',      c: '#1D9E75' }
-    : rsi < 45  ? { s: '약세',        c: '#639922' }
+    : rsi < 30  ? { s: '과매도',      c: 'var(--color-positive-dark)' }
+    : rsi < 45  ? { s: '약세',        c: 'var(--color-positive-muted)' }
     : rsi < 55  ? { s: '중립',        c: 'var(--color-text-secondary)' }
-    : rsi < 70  ? { s: '강세',        c: '#EF9F27' }
-    :             { s: '과매수',      c: '#E24B4A' }
+    : rsi < 70  ? { s: '강세',        c: 'var(--color-caution)' }
+    :             { s: '과매수',      c: 'var(--color-negative-dark)' }
 
   const rsiDesc =
     rsi == null ? '데이터를 계산하는 데 충분한 기간이 필요합니다.'
@@ -31,10 +31,10 @@ function buildItems(snap: IndicatorSnapshot): ExplainItem[] {
   const hist = snap.histogram
   const macdStatus =
     hist == null ? { s: '데이터 없음', c: 'var(--color-text-secondary)' }
-    : hist > 0.5 ? { s: '강한 상승',  c: '#1D9E75' }
-    : hist > 0   ? { s: '약한 상승',  c: '#639922' }
-    : hist > -0.5? { s: '약한 하락',  c: '#EF9F27' }
-    :              { s: '강한 하락',  c: '#E24B4A' }
+    : hist > 0.5 ? { s: '강한 상승',  c: 'var(--color-positive-dark)' }
+    : hist > 0   ? { s: '약한 상승',  c: 'var(--color-positive-muted)' }
+    : hist > -0.5? { s: '약한 하락',  c: 'var(--color-caution)' }
+    :              { s: '강한 하락',  c: 'var(--color-negative-dark)' }
 
   const macdDesc =
     hist == null  ? '데이터를 계산하는 데 충분한 기간이 필요합니다.'
@@ -44,11 +44,11 @@ function buildItems(snap: IndicatorSnapshot): ExplainItem[] {
   const bbp = snap.bbPosition
   const bbStatus =
     bbp == null  ? { s: '데이터 없음', c: 'var(--color-text-secondary)' }
-    : bbp < 0.2  ? { s: '하단 근접',  c: '#1D9E75' }
-    : bbp < 0.4  ? { s: '하단부',     c: '#639922' }
+    : bbp < 0.2  ? { s: '하단 근접',  c: 'var(--color-positive-dark)' }
+    : bbp < 0.4  ? { s: '하단부',     c: 'var(--color-positive-muted)' }
     : bbp < 0.6  ? { s: '중간',       c: 'var(--color-text-secondary)' }
-    : bbp < 0.8  ? { s: '상단부',     c: '#EF9F27' }
-    :              { s: '상단 근접',  c: '#E24B4A' }
+    : bbp < 0.8  ? { s: '상단부',     c: 'var(--color-caution)' }
+    :              { s: '상단 근접',  c: 'var(--color-negative-dark)' }
 
   const bbDesc =
     bbp == null ? '데이터를 계산하는 데 충분한 기간이 필요합니다.'
@@ -59,8 +59,8 @@ function buildItems(snap: IndicatorSnapshot): ExplainItem[] {
     :             '주가가 볼린저 밴드 상단에 닿아 있습니다. 단기 과열 신호로, 일부 차익 실현을 고려할 시점입니다.'
 
   const crossStatus =
-    snap.maCrossState === 'golden' ? { s: '골든크로스', c: '#1D9E75' }
-    : snap.maCrossState === 'dead' ? { s: '데드크로스', c: '#E24B4A' }
+    snap.maCrossState === 'golden' ? { s: '골든크로스', c: 'var(--color-positive-dark)' }
+    : snap.maCrossState === 'dead' ? { s: '데드크로스', c: 'var(--color-negative-dark)' }
     :                                { s: '중립',       c: 'var(--color-text-secondary)' }
 
   const crossDesc =
@@ -72,10 +72,10 @@ function buildItems(snap: IndicatorSnapshot): ExplainItem[] {
 
   const vr = snap.volumeRatio
   const vrStatus =
-    vr > 2    ? { s: '급격한 급증', c: '#1D9E75' }
-    : vr > 1.5? { s: '거래량 급증', c: '#639922' }
+    vr > 2    ? { s: '급격한 급증', c: 'var(--color-positive-dark)' }
+    : vr > 1.5? { s: '거래량 급증', c: 'var(--color-positive-muted)' }
     : vr > 0.7? { s: '보통',        c: 'var(--color-text-secondary)' }
-    :           { s: '거래량 감소', c: '#EF9F27' }
+    :           { s: '거래량 감소', c: 'var(--color-caution)' }
 
   const vrDesc =
     vr > 2    ? `최근 5일 거래량이 평균의 ${vr.toFixed(1)}배입니다. 매우 강한 관심이 몰리고 있어 큰 움직임이 예상됩니다. 방향을 확인 후 대응하세요.`

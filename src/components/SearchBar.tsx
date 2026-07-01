@@ -112,7 +112,7 @@ export default function SearchBar() {
           <div style={{
             width: 13, height: 13, borderRadius: '50%', flexShrink: 0,
             border: '1.5px solid var(--color-border-secondary)',
-            borderTopColor: '#7BA3FF',
+            borderTopColor: 'var(--color-info-text)',
             animation: 'spin 0.7s linear infinite',
           }} />
         ) : (
@@ -136,6 +136,7 @@ export default function SearchBar() {
         {query && (
           <button
             onClick={clearInput}
+            className="focusable"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 12, color: 'var(--color-text-secondary)',
@@ -161,12 +162,16 @@ export default function SearchBar() {
             const kr    = isKR(r.symbol)
             const sym   = cleanSymbol(r.symbol)
             const color = kr ? '#FF5A5A' : '#3B6EFF'
-            const textColor = kr ? '#FF8585' : '#7BA3FF'
+            const textColor = kr ? 'var(--color-error-text)' : 'var(--color-info-text)'
             return (
               <div
                 key={r.symbol}
                 onClick={() => navigate(r.symbol)}
                 onMouseEnter={() => setSelected(i)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(r.symbol) } }}
+                role="button"
+                tabIndex={0}
+                className="focusable"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 14px', cursor: 'pointer',

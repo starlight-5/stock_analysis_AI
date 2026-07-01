@@ -36,7 +36,7 @@ export default function PriceSpectrumBar({ stopLoss, entries, currentPrice, targ
   const progressInRange = firstTarget && firstTarget > stopLoss
     ? (currentPrice - stopLoss) / (firstTarget - stopLoss)
     : 0.5
-  const dotColor = progressInRange < 0.2 ? '#E24B4A' : isProfit ? '#1D9E75' : '#EF9F27'
+  const dotColor = progressInRange < 0.2 ? 'var(--color-negative-dark)' : isProfit ? 'var(--color-positive-dark)' : 'var(--color-caution)'
 
   const toStopPct   = (currentPrice - stopLoss) / currentPrice * 100
   const toTargetPct = firstTarget ? (firstTarget - currentPrice) / currentPrice * 100 : null
@@ -51,7 +51,7 @@ export default function PriceSpectrumBar({ stopLoss, entries, currentPrice, targ
               position: 'absolute', left: `${pct(t.price)}%`,
               transform: 'translateX(-50%)', textAlign: 'center',
             }}>
-              <span style={{ fontSize: 9, color: '#EF9F27', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 9, color: 'var(--color-caution)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 {targets.length > 1 ? `목표${i + 1}` : '목표'}
               </span>
             </div>
@@ -73,18 +73,18 @@ export default function PriceSpectrumBar({ stopLoss, entries, currentPrice, targ
 
         <div style={{
           position: 'absolute', left: `${stopPct}%`, transform: 'translateX(-50%)',
-          width: 2, height: 11, top: -3, borderRadius: 1, background: '#E24B4A',
+          width: 2, height: 11, top: -3, borderRadius: 1, background: 'var(--color-negative-dark)',
         }} />
         {entries.map((e, i) => (
           <div key={i} style={{
             position: 'absolute', left: `${pct(e.price)}%`, transform: 'translateX(-50%)',
-            width: 2, height: 9, top: -2, borderRadius: 1, background: '#1D9E75',
+            width: 2, height: 9, top: -2, borderRadius: 1, background: 'var(--color-positive-dark)',
           }} />
         ))}
         {targets.map((t, i) => (
           <div key={i} style={{
             position: 'absolute', left: `${pct(t.price)}%`, transform: 'translateX(-50%)',
-            width: 2, height: 9, top: -2, borderRadius: 1, background: '#EF9F27',
+            width: 2, height: 9, top: -2, borderRadius: 1, background: 'var(--color-caution)',
           }} />
         ))}
 
@@ -102,11 +102,11 @@ export default function PriceSpectrumBar({ stopLoss, entries, currentPrice, targ
       {/* Entry labels below */}
       <div style={{ position: 'relative', height: 16, marginTop: 4 }}>
         <div style={{ position: 'absolute', left: `${stopPct}%`, transform: 'translateX(-50%)', textAlign: 'center' }}>
-          <span style={{ fontSize: 9, color: '#E24B4A', fontWeight: 600, whiteSpace: 'nowrap' }}>손절</span>
+          <span style={{ fontSize: 9, color: 'var(--color-negative-dark)', fontWeight: 600, whiteSpace: 'nowrap' }}>손절</span>
         </div>
         {entries.map((e, i) => (
           <div key={i} style={{ position: 'absolute', left: `${pct(e.price)}%`, transform: 'translateX(-50%)', textAlign: 'center' }}>
-            <span style={{ fontSize: 9, color: '#1D9E75', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 9, color: 'var(--color-positive-dark)', fontWeight: 600, whiteSpace: 'nowrap' }}>
               {entries.length > 1 ? `${i + 1}차` : '매수'}
             </span>
           </div>
@@ -119,10 +119,10 @@ export default function PriceSpectrumBar({ stopLoss, entries, currentPrice, targ
         marginTop: 8, padding: '7px 12px', borderRadius: 8,
         background: 'var(--color-background-secondary)',
       }}>
-        <span style={{ fontSize: 10, color: '#E24B4A', fontWeight: 500 }}>손절 -{toStopPct.toFixed(1)}%</span>
+        <span style={{ fontSize: 10, color: 'var(--color-negative-dark)', fontWeight: 500 }}>손절 -{toStopPct.toFixed(1)}%</span>
         <span style={{ fontSize: 14, fontWeight: 700, color: dotColor }}>{formatPrice(currentPrice, isKR)}</span>
         {toTargetPct !== null
-          ? <span style={{ fontSize: 10, color: '#EF9F27', fontWeight: 500 }}>목표 +{toTargetPct.toFixed(1)}%</span>
+          ? <span style={{ fontSize: 10, color: 'var(--color-caution)', fontWeight: 500 }}>목표 +{toTargetPct.toFixed(1)}%</span>
           : <span />
         }
       </div>

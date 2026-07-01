@@ -116,7 +116,7 @@ async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
 
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
 
-function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, previousContext = ''): string {
+function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, previousContext = '', entryPrice?: number): string {
   const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
   const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
@@ -191,6 +191,22 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], 
     return lines.join('\n')
   })()
 
+  const entryPriceBlock = entryPrice != null && currentPrice != null ? (() => {
+    const pnlPct = ((currentPrice - entryPrice) / entryPrice * 100)
+    const pnlSign = pnlPct >= 0 ? '+' : ''
+    const status = pnlPct >= 0 ? '수익 중' : '손실 중'
+    return `
+## 현재 보유 포지션 (사용자 입력)
+- 진입가: ${fmtPrice(entryPrice)}
+- 현재 손익: ${pnlSign}${pnlPct.toFixed(2)}% (${status})
+
+위 포지션 정보를 반드시 반영하세요:
+1. summary에 진입가(${fmtPrice(entryPrice)}) 기준 현재 ${status}(${pnlSign}${pnlPct.toFixed(2)}%) 상태를 언급하고, 추가매수·보유·손절 중 어떤 행동을 권고하는지 명시할 것
+2. stopLoss는 진입가(${fmtPrice(entryPrice)}) 대비 적정 리스크(-3~-8% 범위 내)를 고려하여 설정할 것
+3. 손실 중이라면 추가 평단 인하 가능 여부와 리스크를 risks에 포함할 것
+4. 수익 중이라면 일부 익절 시점을 targets에 반영할 것`
+  })() : ''
+
   return `
 당신은 주식 기술적 분석 + 뉴스 감성 분석 + 실적 분석 전문가입니다.
 아래 기술적 지표, 최근 뉴스, 실적 발표 데이터를 종합 분석하여 매매 전략을 수립하세요.
@@ -200,6 +216,7 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], 
 - 티커: ${ticker}
 - 현재가: ${fmtPrice(currentPrice)}
 - 가격 단위: ${priceUnit} (JSON 내 모든 price 필드에 이 단위를 사용할 것)
+${entryPriceBlock}
 ${previousContext}
 
 ## 기술적 지표 (일봉 기준 최신값)
@@ -663,6 +680,9 @@ export async function POST(req: NextRequest) {
 
     ticker = ticker.toUpperCase()
     const forceRefresh = !!body.forceRefresh
+    const entryPrice: number | undefined = typeof body.entryPrice === 'number' && isFinite(body.entryPrice) && body.entryPrice > 0
+      ? body.entryPrice
+      : undefined
 
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id as string | undefined
@@ -714,7 +734,7 @@ export async function POST(req: NextRequest) {
       ? buildPreviousContext(previousHistory, snap, /^\d{6}$/.test(ticker))
       : ''
 
-    const prompt = buildPrompt(ticker, snap, news, earnings, previousContext)
+    const prompt = buildPrompt(ticker, snap, news, earnings, previousContext, entryPrice)
 
     // 5. Gemini REST API 호출
     const response = await fetch(

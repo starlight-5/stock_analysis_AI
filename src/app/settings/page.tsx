@@ -15,8 +15,8 @@ export default function SettingsPage() {
 
   if (status === 'unauthenticated') { router.push('/login'); return null }
   if (status === 'loading') return (
-    <div style={{ minHeight: '100vh', background: '#131626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ color: '#7A82A8', fontSize: 14 }}>로딩 중...</span>
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>로딩 중...</span>
     </div>
   )
 
@@ -35,25 +35,25 @@ export default function SettingsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#131626', padding: '68px 24px 100px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-tertiary)', padding: '68px 24px 100px' }}>
       <div style={{ maxWidth: 480, margin: '0 auto' }}>
         <div style={{ marginBottom: 32 }}>
-          <a href="/" style={{ color: '#7A82A8', fontSize: 13, textDecoration: 'none' }}>← 홈</a>
-          <h1 style={{ margin: '12px 0 4px', fontSize: 22, fontWeight: 700, color: '#ECEEF8' }}>계정 설정</h1>
+          <a href="/" style={{ color: 'var(--color-text-secondary)', fontSize: 13, textDecoration: 'none' }}>← 홈</a>
+          <h1 style={{ margin: '12px 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)' }}>계정 설정</h1>
         </div>
 
         {/* 계정 정보 */}
         <div style={{
-          background: '#1C2038', border: '1px solid #2D3460',
+          background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)',
           borderRadius: 12, padding: '20px',  marginBottom: 24,
         }}>
-          <p style={{ margin: '0 0 4px', fontSize: 12, color: '#7A82A8' }}>로그인 계정</p>
-          <p style={{ margin: 0, fontSize: 15, color: '#ECEEF8', fontWeight: 500 }}>
+          <p style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--color-text-secondary)' }}>로그인 계정</p>
+          <p style={{ margin: 0, fontSize: 15, color: 'var(--color-text-primary)', fontWeight: 500 }}>
             {session?.user?.email}
             {isAdmin && (
               <span style={{
                 marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 10,
-                background: 'rgba(29,158,117,0.15)', color: '#1D9E75',
+                background: 'rgba(29,158,117,0.15)', color: 'var(--color-positive-dark)',
                 border: '1px solid rgba(29,158,117,0.4)',
               }}>관리자</span>
             )}
@@ -62,11 +62,11 @@ export default function SettingsPage() {
 
         {/* 계정 탈퇴 */}
         <div style={{
-          background: '#1C2038', border: '1px solid #2D3460',
+          background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)',
           borderRadius: 12, padding: '20px',
         }}>
-          <h2 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600, color: '#ECEEF8' }}>계정 탈퇴</h2>
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#7A82A8', lineHeight: 1.6 }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)' }}>계정 탈퇴</h2>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
             탈퇴 시 포지션, 관심종목 등 모든 데이터가 영구 삭제됩니다.
           </p>
 
@@ -79,7 +79,7 @@ export default function SettingsPage() {
               onClick={() => setConfirm(true)}
               style={{
                 padding: '9px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                background: 'rgba(226,75,74,0.1)', color: '#E24B4A',
+                background: 'rgba(226,75,74,0.1)', color: 'var(--color-negative-dark)',
                 border: '1px solid rgba(226,75,74,0.3)', cursor: 'pointer',
               }}
             >
@@ -91,17 +91,17 @@ export default function SettingsPage() {
               borderRadius: 8, padding: '14px',
               display: 'flex', flexDirection: 'column', gap: 12,
             }}>
-              <p style={{ margin: 0, fontSize: 13, color: '#E24B4A', fontWeight: 500 }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-negative-dark)', fontWeight: 500 }}>
                 정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.
               </p>
-              {error && <p style={{ margin: 0, fontSize: 13, color: '#FF8585' }}>{error}</p>}
+              {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--color-error-text)' }}>{error}</p>}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={handleDelete}
                   disabled={loading}
                   style={{
                     padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                    background: loading ? '#2D3460' : '#E24B4A', color: '#fff',
+                    background: loading ? 'var(--color-border-secondary)' : 'var(--color-negative-dark)', color: '#fff',
                     border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
                   }}
                 >
@@ -112,8 +112,8 @@ export default function SettingsPage() {
                   disabled={loading}
                   style={{
                     padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                    background: 'none', color: '#7A82A8',
-                    border: '1px solid #2D3460', cursor: 'pointer',
+                    background: 'none', color: 'var(--color-text-secondary)',
+                    border: '1px solid var(--color-border-secondary)', cursor: 'pointer',
                   }}
                 >
                   취소

@@ -18,6 +18,39 @@
   --color-info-bg:       #101D35;
   --color-info-border:   #1E3A70;
   --color-info-text:     #7BA3FF;
+
+  /* 어센트 / CTA */
+  --color-accent-primary: #3B6EFF;
+  --color-accent-light:   #5B8BFF;
+  --color-accent-muted:   #A3B4FF;
+
+  /* 시그널 — 긍정 */
+  --color-positive:       #4ADE80;
+  --color-positive-dark:  #1D9E75;
+  --color-positive-muted: #639922;
+
+  /* 시그널 — 부정 */
+  --color-negative:       #FF5A5A;
+  --color-negative-dark:  #E24B4A;
+
+  /* 주의 */
+  --color-caution:        #EF9F27;
+
+  /* 스페이싱 스케일 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 타입 스케일 */
+  --font-size-xs:  11px;
+  --font-size-sm:  12px;
+  --font-size-md:  13px;
+  --font-size-base:14px;
+  --font-size-lg:  15px;
+  --font-size-xl:  24px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -37,4 +70,15 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* Keyboard focus ring — applied via className="focusable" */
+.focusable:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
 }

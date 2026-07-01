@@ -82,7 +82,7 @@ export default function StockDetailPage() {
       .finally(() => setLoadingData(false))
   }, [ticker])
 
-  const runAnalyze = useCallback(async (force = false) => {
+  const runAnalyze = useCallback(async (force = false, entryPrice?: number) => {
     setAnalyzing(true)
     setAnalyzeError(null)
     setIsFallback(false)
@@ -90,7 +90,7 @@ export default function StockDetailPage() {
       const res = await fetch('/api/strategy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, forceRefresh: force }),
+        body: JSON.stringify({ ticker, forceRefresh: force, entryPrice }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -106,8 +106,8 @@ export default function StockDetailPage() {
     }
   }, [ticker])
 
-  const handleAnalyze = useCallback(() => runAnalyze(false), [runAnalyze])
-  const handleForceRefresh = useCallback(() => runAnalyze(true), [runAnalyze])
+  const handleAnalyze = useCallback((ep?: number) => runAnalyze(false, ep), [runAnalyze])
+  const handleForceRefresh = useCallback((ep?: number) => runAnalyze(true, ep), [runAnalyze])
 
   const buyEntries = strategy?.buyStrategy.entries.map((e, i) => ({
     price: e.price,
