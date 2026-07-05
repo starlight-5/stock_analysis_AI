@@ -249,7 +249,7 @@ export default function StockDetailPage() {
                   sellTargets={sellTargets}
                   stopLoss={strategy?.buyStrategy.stopLoss}
                 />
-                <IndicatorExplainer snap={snapshot ?? deriveSnapshot(bars, indicators)} />
+                <IndicatorExplainer snap={snapshot ?? deriveSnapshot(bars, indicators)} ticker={ticker} />
               </>
             ) : (
               <div style={{ height: 340, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
