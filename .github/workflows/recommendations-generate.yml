@@ -3,9 +3,8 @@ name: 추천 종목 자동 생성
 on:
   schedule:
     # KST 06:00~07:55 (UTC 21:00~22:55) 동안 5분마다 실행
-    # 5분 × 24회 = 120종목 커버 가능
     - cron: '*/5 21-22 * * *'
-  workflow_dispatch:  # GitHub UI에서 수동 실행 가능
+  workflow_dispatch:
 
 jobs:
   generate:
@@ -18,22 +17,29 @@ jobs:
           APP_URL:     ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "호출: $APP_URL/api/recommendations/generate"
-
-          RESPONSE=$(curl -s --max-time 58 \
+          HTTP_STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            --max-time 58 \
             -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
             "$APP_URL/api/recommendations/generate")
 
-          echo "$RESPONSE" | python3 -c "
-          import sys, json
-          try:
-            d = json.load(sys.stdin)
-            print(f'누적 처리: {d.get(\"totalDone\", \"?\")}종목  소요: {d.get(\"elapsed\", \"?\")}')
-            print(f'완료 여부: {\"완료\" if d.get(\"isComplete\") else \"미완 — 다음 실행에서 계속\"}')
-            log = d.get('log', [])
-            for line in log[-5:]:
-              print(line)
-          except Exception as e:
-            print('응답 파싱 실패:', e)
-            print(sys.stdin.read()[:500])
-          " 2>/dev/null || echo "$RESPONSE" | head -c 500
+          RESPONSE=$(cat /tmp/response.txt)
+          echo "HTTP 상태: $HTTP_STATUS"
+          echo "응답: $RESPONSE"
+
+          python3 - <<'PYEOF'
+import json, os
+
+with open('/tmp/response.txt') as f:
+    raw = f.read()
+
+try:
+    d = json.loads(raw)
+    print(f'누적 처리: {d.get("totalDone", "?")}종목  소요: {d.get("elapsed", "?")}')
+    print(f'완료 여부: {"완료" if d.get("isComplete") else "미완 — 다음 실행에서 계속"}')
+    for line in d.get('log', [])[-5:]:
+        print(line)
+except Exception as e:
+    print(f'JSON 파싱 실패 ({e}) — 원시 응답:')
+    print(raw[:1000])
+PYEOF
