@@ -156,6 +156,15 @@ export async function GET(req: NextRequest) {
   const summary: Record<string, { ok: number; skip: number; fail: number }> = {}
 
   try {
+    // 7일 이전 데이터 삭제
+    const cutoff = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    cutoff.setDate(cutoff.getDate() - 7)
+    const cutoffDate = cutoff.toISOString().slice(0, 10)
+    const deleted = await prisma.dailyRecommendation.deleteMany({
+      where: { date: { lt: cutoffDate } },
+    })
+    if (deleted.count > 0) log.push(`🗑 ${cutoffDate} 이전 데이터 ${deleted.count}건 삭제`)
+
     // 오늘 이미 처리된 종목 목록 로드
     const existingToday = await prisma.dailyRecommendation.findMany({
       where: { date },
