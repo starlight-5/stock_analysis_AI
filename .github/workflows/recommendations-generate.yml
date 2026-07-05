@@ -17,7 +17,7 @@ jobs:
           APP_URL:     ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          HTTP_STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+          HTTP_STATUS=$(curl -s -L -o /tmp/response.txt -w "%{http_code}" \
             --max-time 58 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/recommendations/generate")
