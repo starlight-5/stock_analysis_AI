@@ -2,19 +2,19 @@
  * GET /api/recommendations/generate
  * Vercel Cron에 의해 매일 06:00 KST (21:00 UTC)에 자동 호출됩니다.
  * Vercel이 자동으로 Authorization: Bearer <CRON_SECRET> 헤더를 추가합니다.
+ * 어드민 계정으로 로그인된 상태에서 직접 호출하면 CRON_SECRET 없이도 실행됩니다.
  *
- * 흐름:
- * 1. 상위 3개 섹터 ETF 성과 조회
- * 2. 각 섹터에서 Gemini로 US 20 + KR 20 종목 선정
- * 3. 각 종목 전략 분석 (Gemini, 2.5s 딜레이)
- * 4. DailyRecommendation DB 저장
+ * 이미 처리된 종목은 건너뛰고, 50초 예산 초과 시 중단했다가 다음 호출에서 이어서 처리합니다.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { runStrategyAnalysis } from '@/lib/strategyAnalyzer'
 
 const GEMINI_DELAY_MS = 2500
 const YF_DELAY_MS     = 300
+const TIME_BUDGET_MS  = 52_000  // 52초 → Vercel 60초 제한 전에 안전하게 종료
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -129,14 +129,20 @@ async function pickStocksForSector(apiKey: string, sector: SectorPerf): Promise<
   }
 }
 
-// ─── GET Handler (Vercel Cron 진입점) ────────────────────────────
+// ─── GET Handler (Vercel Cron 진입점 + 어드민 수동 실행) ──────────
 
 export async function GET(req: NextRequest) {
-  // Vercel Cron 인증 (Authorization: Bearer <CRON_SECRET>)
+  const startMs = Date.now()
+
+  // 인증: Vercel Cron 시크릿 OR 로그인된 어드민
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${cronSecret}`) {
+  const authHeader  = req.headers.get('authorization')
+  const isFromCron  = !!cronSecret && authHeader === `Bearer ${cronSecret}`
+
+  if (!isFromCron) {
+    const session    = await getServerSession(authOptions)
+    const adminEmail = process.env.ADMIN_EMAIL
+    if (!session?.user?.email || !adminEmail || session.user.email !== adminEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
   }
@@ -148,17 +154,42 @@ export async function GET(req: NextRequest) {
 
   const date = todayKST()
   const log: string[] = [`[${new Date().toISOString()}] 시작: ${date}`]
-  const summary: Record<string, { ok: number; fail: number }> = {}
+  const summary: Record<string, { ok: number; skip: number; fail: number }> = {}
 
   try {
+    // 오늘 이미 처리된 종목 목록 로드
+    const existingToday = await prisma.dailyRecommendation.findMany({
+      where: { date },
+      select: { ticker: true, sectorId: true },
+    })
+    const doneTickers   = new Set(existingToday.map(r => r.ticker))
+    const doneBySecor   = existingToday.reduce<Record<string, number>>((acc, r) => {
+      acc[r.sectorId] = (acc[r.sectorId] ?? 0) + 1
+      return acc
+    }, {})
+    log.push(`기존 처리 완료: ${doneTickers.size}종목`)
+
     log.push('섹터 성과 조회 중...')
     const top3 = await getTop3Sectors()
     if (top3.length === 0) return NextResponse.json({ error: '섹터 데이터 없음' }, { status: 500 })
     log.push(`상위 섹터: ${top3.map(s => s.name).join(', ')}`)
 
+    let timeExceeded = false
+
     for (const sector of top3) {
-      log.push(`\n[${sector.emoji} ${sector.name}] 종목 선정 중...`)
-      summary[sector.id] = { ok: 0, fail: 0 }
+      if (timeExceeded) {
+        log.push(`[${sector.emoji} ${sector.name}] 건너뜀 (시간 부족)`)
+        break
+      }
+
+      const alreadyDone = doneBySecor[sector.id] ?? 0
+      if (alreadyDone >= 40) {
+        log.push(`[${sector.emoji} ${sector.name}] 완료됨 (${alreadyDone}종목)`)
+        continue
+      }
+
+      log.push(`\n[${sector.emoji} ${sector.name}] 종목 선정 중... (기존 ${alreadyDone}개)`)
+      summary[sector.id] = { ok: 0, skip: alreadyDone, fail: 0 }
 
       await sleep(GEMINI_DELAY_MS)
       let picked: PickedStocks
@@ -168,14 +199,21 @@ export async function GET(req: NextRequest) {
         log.push(`  종목 선정 실패: ${e.message}`)
         continue
       }
-      log.push(`  선정: US ${picked.us.length}개 + KR ${picked.kr.length}개`)
 
-      const stocks = [
+      const allStocks = [
         ...picked.us.map(s => ({ ...s, market: 'US' as const })),
         ...picked.kr.map(s => ({ ...s, market: 'KR' as const })),
       ]
+      const pending = allStocks.filter(s => !doneTickers.has(s.ticker))
+      log.push(`  선정 ${allStocks.length}개 중 미처리 ${pending.length}개 분석 시작`)
 
-      for (const stock of stocks) {
+      for (const stock of pending) {
+        if (Date.now() - startMs > TIME_BUDGET_MS) {
+          log.push('  ⏸ 시간 제한 — 다음 호출에서 이어서 처리됩니다')
+          timeExceeded = true
+          break
+        }
+
         try {
           await sleep(YF_DELAY_MS)
           const analysis = await runStrategyAnalysis(stock.ticker, geminiApiKey)
@@ -198,6 +236,7 @@ export async function GET(req: NextRequest) {
               signal: analysis.strategy.signal, fallback: analysis.fallbackMode,
             },
           })
+          doneTickers.add(stock.ticker)
           summary[sector.id].ok++
           log.push(`  ✓ ${stock.ticker} (${analysis.strategy.signal})`)
         } catch (e: any) {
@@ -207,8 +246,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    log.push(`\n완료: ${new Date().toISOString()}`)
-    return NextResponse.json({ date, summary, log })
+    const elapsed    = ((Date.now() - startMs) / 1000).toFixed(1)
+    const totalDone  = doneTickers.size
+    const isComplete = !timeExceeded
+    log.push(`\n완료: ${elapsed}초 경과 · 누적 ${totalDone}종목`)
+
+    return NextResponse.json({ date, summary, log, totalDone, isComplete, elapsed: `${elapsed}s` })
   } catch (e: any) {
     log.push(`\n오류: ${e.message}`)
     return NextResponse.json({ error: e.message, log }, { status: 500 })

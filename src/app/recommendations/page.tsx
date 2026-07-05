@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import AuthGuard from '@/components/AuthGuard'
 
 const IS_KR = (t: string) => /^\d{6}$/.test(t)
@@ -199,16 +200,44 @@ function SectorSection({ sector }: { sector: Sector }) {
 }
 
 export default function RecommendationsPage() {
+  const { data: session }     = useSession()
   const [data, setData]       = useState<RecommendationsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState<string>('all')
+  const [generating, setGenerating] = useState(false)
+  const [genLog, setGenLog]   = useState<string | null>(null)
 
-  useEffect(() => {
+  const isAdmin = !!(
+    session?.user?.email &&
+    process.env.NEXT_PUBLIC_ADMIN_EMAIL &&
+    session.user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL
+  )
+
+  function loadData() {
+    setLoading(true)
     fetch('/api/recommendations')
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  async function handleGenerate() {
+    setGenerating(true)
+    setGenLog(null)
+    try {
+      const res = await fetch('/api/recommendations/generate')
+      const json = await res.json()
+      const last = json.log?.slice(-3).join('\n') ?? (json.error || '완료')
+      setGenLog(`${json.totalDone ?? '?'}종목 처리됨 · ${json.elapsed ?? ''}\n${last}`)
+      loadData()
+    } catch (e: any) {
+      setGenLog(`오류: ${e.message}`)
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const SIGNAL_FILTERS = [
     { key: 'all',        label: '전체' },
@@ -227,14 +256,41 @@ export default function RecommendationsPage() {
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px 80px' }}>
         {/* 헤더 */}
         <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
-            오늘의 추천 종목
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+              오늘의 추천 종목
+            </h1>
+            {isAdmin && (
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                style={{
+                  fontSize: 12, padding: '6px 14px', borderRadius: 8,
+                  border: '0.5px solid var(--color-border-secondary)',
+                  background: generating ? 'var(--color-background-secondary)' : 'var(--color-accent)',
+                  color: generating ? 'var(--color-text-secondary)' : '#fff',
+                  cursor: generating ? 'not-allowed' : 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                {generating ? '생성 중…' : '이어서 생성'}
+              </button>
+            )}
+          </div>
           {data?.date && (
             <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
               {data.date} 기준 · 섹터 ETF 성과 + Gemini AI 분석
               {data.generatedAt && ` · 생성 ${new Date(data.generatedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`}
             </p>
+          )}
+          {genLog && (
+            <pre style={{
+              marginTop: 8, fontSize: 11, color: 'var(--color-text-secondary)',
+              background: 'var(--color-background-secondary)', borderRadius: 8,
+              padding: '8px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+            }}>
+              {genLog}
+            </pre>
           )}
         </div>
 
