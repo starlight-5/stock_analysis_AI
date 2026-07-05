@@ -31,7 +31,7 @@ export interface Indicators {
 }
 
 // ─── 데이터소스 응답 ──────────────────────────────────────────────
-export type DataSource = 'alpaca' | 'korea_investment' | 'mock'
+export type DataSource = 'yahoo' | 'korea_investment' | 'mock'
 
 export interface StockDataResult {
   ticker: string

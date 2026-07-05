@@ -79,20 +79,29 @@ async function fetchUSPrice(ticker: string): Promise<PriceData> {
 
 // ─── KR: 정규장 여부 판단 (KST 기준 평일 09:00~15:30) ───────────
 function isKRRegularSession(): boolean {
-  const now = new Date()
-  // KST = UTC+9
-  const kstMs = now.getTime() + 9 * 60 * 60 * 1000
+  const kstMs = Date.now() + 9 * 60 * 60 * 1000
   const kst = new Date(kstMs)
-  const day = kst.getUTCDay()   // 0=일, 6=토
+  const day = kst.getUTCDay()
   if (day === 0 || day === 6) return false
-  const h = kst.getUTCHours()
-  const m = kst.getUTCMinutes()
-  const totalMin = h * 60 + m
-  return totalMin >= 9 * 60 && totalMin < 15 * 60 + 30 // 09:00 ~ 15:29
+  const totalMin = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+  return totalMin >= 9 * 60 && totalMin < 15 * 60 + 30
 }
 
-// ─── KR: KIS 시간외현재가 ─────────────────────────────────────────
-async function fetchKISExtPrice(ticker: string): Promise<ExtInfo | null> {
+// ─── KR: 평일 시간외 여부 (주말·공휴일 제외) ─────────────────────
+function isKRExtSession(): boolean {
+  const kstMs = Date.now() + 9 * 60 * 60 * 1000
+  const kst = new Date(kstMs)
+  const day = kst.getUTCDay()
+  if (day === 0 || day === 6) return false
+  const totalMin = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+  return totalMin < 9 * 60 || totalMin >= 15 * 60 + 30
+}
+
+// ─── KR: KIS 현재가 (정규장 + 시간외 통합) ───────────────────────
+async function fetchKRPrice(ticker: string): Promise<PriceData> {
+  const hit = priceCache.get(ticker)
+  if (hit && Date.now() < hit.exp) return hit.data
+
   try {
     const token = await getKIToken()
     const params = new URLSearchParams({
@@ -112,56 +121,31 @@ async function fetchKISExtPrice(ticker: string): Promise<ExtInfo | null> {
         signal: AbortSignal.timeout(5000),
       }
     )
-    if (!res.ok) return null
+    if (!res.ok) return { price: null, ext: null }
     const json = await res.json()
-    if (json.rt_cd !== '0') return null
+    if (json.rt_cd !== '0') return { price: null, ext: null }
 
     const o = json.output
-    const price = parseFloat(o?.stck_prpr ?? '0')
-    if (!price || price <= 0) return null
+    const price = parseFloat(o?.stck_prpr ?? '0') || null
+    if (!price) return { price: null, ext: null }
 
-    const change = parseFloat(o?.prdy_vrss ?? '0')
-    const changePct = parseFloat(o?.prdy_ctrt ?? '0')
+    let ext: ExtInfo | null = null
+    if (isKRExtSession()) {
+      const change = parseFloat(o?.prdy_vrss ?? '0')
+      const changePct = parseFloat(o?.prdy_ctrt ?? '0')
+      const kstMs = Date.now() + 9 * 60 * 60 * 1000
+      const kst = new Date(kstMs)
+      const totalMin = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+      const type: 'pre' | 'post' = totalMin < 9 * 60 ? 'pre' : 'post'
+      ext = { price, change, changePct, type }
+    }
 
-    // KST 기준 장전(~09:00) / 장후(15:30~) 구분
-    const kstMs = Date.now() + 9 * 60 * 60 * 1000
-    const kst = new Date(kstMs)
-    const totalMin = kst.getUTCHours() * 60 + kst.getUTCMinutes()
-    const type: 'pre' | 'post' = totalMin < 9 * 60 ? 'pre' : 'post'
-
-    return { price, change, changePct, type }
+    const data: PriceData = { price, ext }
+    priceCache.set(ticker, { data, exp: Date.now() + CACHE_TTL })
+    return data
   } catch {
-    return null
+    return { price: null, ext: null }
   }
-}
-
-// ─── KR: Yahoo Finance (정규가) + KIS (시간외) ────────────────────
-async function fetchKRPrice(ticker: string): Promise<PriceData> {
-  const hit = priceCache.get(ticker)
-  if (hit && Date.now() < hit.exp) return hit.data
-
-  const symbol = `${ticker}.KS`
-  let price: number | null = null
-
-  try {
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`,
-      {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        signal: AbortSignal.timeout(8000),
-      }
-    )
-    const json = await res.json()
-    const meta = json.chart?.result?.[0]?.meta
-    price = meta?.regularMarketPrice ?? meta?.previousClose ?? null
-  } catch {}
-
-  // 정규장 중에는 시간외 가격 불필요 → 스킵
-  const ext = isKRRegularSession() ? null : await fetchKISExtPrice(ticker)
-
-  const data: PriceData = { price, ext }
-  if (price != null) priceCache.set(ticker, { data, exp: Date.now() + CACHE_TTL })
-  return data
 }
 
 // ─── GET /api/prices?tickers=AAPL,005930 ─────────────────────────

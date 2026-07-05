@@ -42,7 +42,7 @@ function deriveSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
-  alpaca:           'Alpaca',
+  yahoo:            'Yahoo Finance',
   korea_investment: '한국투자증권',
   mock:             '데모 데이터',
 }
@@ -62,9 +62,10 @@ export default function StockDetailPage() {
   const [snapshot, setSnapshot]       = useState<IndicatorSnapshot | null>(null)
   const [analyzing, setAnalyzing]     = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
-  const [isFallback, setIsFallback]   = useState(false)
-  const [fromCache, setFromCache]     = useState(false)
-  const [fromDB, setFromDB]           = useState(false)
+  const [isFallback, setIsFallback]     = useState(false)
+  const [fromCache, setFromCache]       = useState(false)
+  const [fromDB, setFromDB]             = useState(false)
+  const [isGeminiAnalysis, setIsGemini] = useState(false)
 
   // ── 실시간 현재가 (5분 tick 동기화) ────────────────────────────
   const [livePrice, setLivePrice]     = useState<PriceData | null>(null)
@@ -100,6 +101,7 @@ export default function StockDetailPage() {
 
   const runAnalyze = useCallback(async (force = false, entryPrice?: number) => {
     setAnalyzing(true)
+    setIsGemini(force)
     setAnalyzeError(null)
     setIsFallback(false)
     try {
@@ -110,6 +112,8 @@ export default function StockDetailPage() {
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
+      // strategy: null 이면 데이터 없음 — 빈 화면 유지
+      if (data.strategy === null) return
       setStrategy(data.strategy)
       setSnapshot(data.snapshot)
       setIsFallback(!!data.fallbackMode)
@@ -122,8 +126,26 @@ export default function StockDetailPage() {
     }
   }, [ticker])
 
-  const handleAnalyze = useCallback((ep?: number) => runAnalyze(false, ep), [runAnalyze])
-  const handleForceRefresh = useCallback((ep?: number) => runAnalyze(true, ep), [runAnalyze])
+  // 활성 포지션이 있으면 페이지 진입 시 DB 전략 자동 로드 (Gemini 없음)
+  useEffect(() => {
+    if (!ticker) return
+    let cancelled = false
+    fetch('/api/positions')
+      .then(r => r.ok ? r.json() : [])
+      .then((positions: any[]) => {
+        if (cancelled) return
+        if (Array.isArray(positions) && positions.some(p => p.ticker === ticker && p.status === 'active')) {
+          runAnalyze(false)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [ticker, runAnalyze])
+
+  // 버튼 클릭 → 항상 Gemini 재분석 (force=true)
+  const handleAnalyze = useCallback((ep?: number) => {
+    runAnalyze(true, ep)
+  }, [runAnalyze])
 
   const buyEntries = strategy?.buyStrategy.entries.map((e, i) => ({
     price: e.price,
@@ -249,10 +271,10 @@ export default function StockDetailPage() {
             isFallback={isFallback}
             fromCache={fromCache}
             fromDB={fromDB}
+            isGeminiAnalysis={isGeminiAnalysis}
             livePrice={livePrice?.price ?? null}
             liveExt={livePrice?.ext ?? null}
             onAnalyze={handleAnalyze}
-            onForceRefresh={handleForceRefresh}
           />
         </div>
       </main>

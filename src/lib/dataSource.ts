@@ -1,7 +1,7 @@
 /**
  * 주식 데이터 통합 데이터소스 모듈
  *
- * 미국 주식: Alpaca Data API (1d bars) 호출
+ * 미국 주식: Yahoo Finance Chart API (1d bars) 호출 — query1 실패 시 query2 폴백
  * 한국 주식: 한국투자증권 UAPI (국내주식기간별일봉) 호출
  *
  * globalThis를 사용해 메모리에 데이터를 캐싱하여 불필요한 API 호출을 줄인다.
@@ -9,9 +9,6 @@
  */
 import type { OHLCVBar, StockDataResult, DataSource } from '@/types/stock'
 import { getKIToken, KI_BASE, KI_KEY, KI_SECRET } from '@/lib/kisToken'
-
-const ALPACA_KEY_ID = process.env.ALPACA_API_KEY_ID ?? ''
-const ALPACA_SECRET = process.env.ALPACA_SECRET_KEY ?? ''
 
 // ─── 캐시 ────────────────────────────────────────────────────────
 // globalThis를 통해 서버리스 인스턴스 환경 내에서 단일 캐시 맵을 유지한다.
@@ -32,33 +29,53 @@ function setCache(key: string, data: StockDataResult) {
   cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS })
 }
 
-// ─── 1. Alpaca (US 주식) ─────────────────────────────────────────
-async function fetchFromAlpaca(ticker: string, days = 180): Promise<OHLCVBar[]> {
-  if (!ALPACA_KEY_ID || !ALPACA_SECRET)
-    throw new Error('ALPACA_API_KEY_ID 또는 ALPACA_SECRET_KEY 미설정')
+// ─── 1. Yahoo Finance (US 주식) ──────────────────────────────────
+async function fetchFromYahooFinance(ticker: string, days = 180): Promise<OHLCVBar[]> {
+  const range = days <= 30 ? '1mo' : days <= 90 ? '3mo' : days <= 180 ? '6mo' : '1y'
 
-  const start = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
-  const url = `https://data.alpaca.markets/v2/stocks/${ticker}/bars` +
-    `?timeframe=1Day&start=${start}&limit=${days}&feed=iex&sort=asc`
+  const tryFetch = async (host: string): Promise<OHLCVBar[]> => {
+    const url = `https://${host}/v8/finance/chart/${ticker}?interval=1d&range=${range}`
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`)
 
-  const res = await fetch(url, {
-    headers: {
-      'APCA-API-KEY-ID':     ALPACA_KEY_ID,
-      'APCA-API-SECRET-KEY': ALPACA_SECRET,
-      'Accept': 'application/json',
-    },
-  })
-  if (!res.ok) throw new Error(`Alpaca HTTP ${res.status}`)
+    const json = await res.json()
+    const result = json.chart?.result?.[0]
+    if (!result) throw new Error('Yahoo Finance: result 없음')
 
-  const json = await res.json()
-  if (!json.bars?.length) throw new Error(`Alpaca: ${ticker} 데이터 없음`)
+    const timestamps: number[] = result.timestamp ?? []
+    const quote = result.indicators?.quote?.[0]
+    if (!timestamps.length || !quote) throw new Error('Yahoo Finance: OHLCV 데이터 없음')
 
-  return json.bars
-    .map((b: any) => ({
-      date: b.t.slice(0, 10),
-      open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v,
-    }))
-    .sort((a: any, b: any) => a.date.localeCompare(b.date))
+    const bars: OHLCVBar[] = []
+    for (let i = 0; i < timestamps.length; i++) {
+      const open  = quote.open?.[i]
+      const high  = quote.high?.[i]
+      const low   = quote.low?.[i]
+      const close = quote.close?.[i]
+      const volume = quote.volume?.[i]
+      // null 캔들(거래 없는 날) 스킵
+      if (open == null || high == null || low == null || close == null) continue
+      const date = new Date(timestamps[i] * 1000).toISOString().slice(0, 10)
+      bars.push({ date, open, high, low, close, volume: volume ?? 0 })
+    }
+
+    if (!bars.length) throw new Error(`Yahoo Finance: ${ticker} 유효 데이터 없음`)
+    return bars.sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  // query1 실패 시 query2로 폴백
+  try {
+    return await tryFetch('query1.finance.yahoo.com')
+  } catch (e1) {
+    try {
+      return await tryFetch('query2.finance.yahoo.com')
+    } catch (e2) {
+      throw new Error(`Yahoo Finance 조회 실패 (query1: ${e1}, query2: ${e2})`)
+    }
+  }
 }
 
 // ─── 2. 한국투자증권 (국내 6자리 종목코드 — 숫자·알파뉴메릭 모두) ─
@@ -187,8 +204,8 @@ export async function fetchStockData(ticker: string, days = 180): Promise<StockD
     bars   = await fetchFromKoreaInvestment(ticker)
     source = 'korea_investment'
   } else {
-    bars   = await fetchFromAlpaca(ticker, days)
-    source = 'alpaca'
+    bars   = await fetchFromYahooFinance(ticker, days)
+    source = 'yahoo'
   }
 
   const name   = await fetchStockName(ticker)
@@ -197,4 +214,4 @@ export async function fetchStockData(ticker: string, days = 180): Promise<StockD
   return result
 }
 
-export { fetchFromAlpaca, fetchFromKoreaInvestment }
+export { fetchFromYahooFinance, fetchFromKoreaInvestment }
