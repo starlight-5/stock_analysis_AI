@@ -136,11 +136,17 @@ export function buildPrompt(
     : snap.bbPosition > 0.8 ? `상단 근처 (${pct(snap.bbPosition)})`
     : `중간 (${pct(snap.bbPosition)})`
 
-  const crossLabels: Record<IndicatorSnapshot['maCrossState'], string> = {
-    golden: '골든크로스 (5일선 > 20일선)',
-    dead:   '데드크로스 (5일선 < 20일선)',
-    neutral: '중립',
-  }
+  const crossLabel = (() => {
+    const d = snap.maCrossDaysAgo
+    const ago = d != null ? (d === 0 ? ' (오늘 발생)' : ` (${d}거래일 전 발생)`) : ''
+    switch (snap.maCrossState) {
+      case 'golden': return `골든크로스 발생${ago}`
+      case 'dead':   return `데드크로스 발생${ago}`
+      case 'above':  return `5일선 > 20일선 유지 중${ago ? ' — 골든크로스' + ago : ''}`
+      case 'below':  return `5일선 < 20일선 유지 중${ago ? ' — 데드크로스' + ago : ''}`
+      default:       return '중립'
+    }
+  })()
 
   const newsSection = news.length > 0
     ? news.map((n, i) => `${i + 1}. [${n.date}] ${n.title} (${n.publisher})`).join('\n')
@@ -196,7 +202,7 @@ ${positionContext}
 - 밴드 내 위치: ${bbPos}
 - BB 폭 비율 (현재/20일평균): ${fmt(snap.bbWidthRatio, 2)}배${snap.bbWidthRatio != null && snap.bbWidthRatio > 1.5 ? ' (급팽창 중)' : ''}
 - 이동평균: MA5 ${fmtPrice(snap.ma5)} / MA20 ${fmtPrice(snap.ma20)} / MA60 ${fmtPrice(snap.ma60)} / MA120 ${fmtPrice(snap.ma120)}
-- 이동평균 크로스: ${crossLabels[snap.maCrossState]}
+- 이동평균 크로스: ${crossLabel}
 - 거래량 비율 (최근5일/20일평균): ${fmt(snap.volumeRatio, 2)}배
 - 역사적 변동성: HV20 ${fmt(snap.hv20, 1)}% / HV60 ${fmt(snap.hv60, 1)}% (비율 ${hvRatio != null ? hvRatio.toFixed(1) : 'N/A'}배)
 - 변동성 구간: ${regimeLabel[snap.volatilityRegime]}
@@ -357,7 +363,8 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
     if (snap.macd < snap.signal && (snap.histogram ?? 0) < 0) return -1
     return 0
   })()
-  const crossScore = snap.maCrossState === 'golden' ? 1 : snap.maCrossState === 'dead' ? -1 : 0
+  const crossScore = (snap.maCrossState === 'golden' || snap.maCrossState === 'above') ? 1
+    : (snap.maCrossState === 'dead' || snap.maCrossState === 'below') ? -1 : 0
   const baseScore  = rsiScore + bbScore + macdScore + crossScore
   const volScore   = (() => {
     if ((snap.volumeRatio ?? 0) < 1.5) return 0

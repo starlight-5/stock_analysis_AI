@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
       close: 100000, rsi: 50, macd: 0, signal: 0, histogram: 0,
       bbUpper: 110000, bbMid: 100000, bbLower: 90000,
       ma5: 100000, ma20: 100000, ma60: 100000, ma120: 100000,
-      volumeRatio: 1.0, bbPosition: 0.5, maCrossState: 'neutral',
+      volumeRatio: 1.0, bbPosition: 0.5, maCrossState: 'neutral', maCrossDaysAgo: null,
       hv20: null, hv60: null, volatilityRegime: 'normal', bbWidthRatio: null,
     }
 

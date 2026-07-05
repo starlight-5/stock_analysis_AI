@@ -103,7 +103,8 @@ export interface IndicatorSnapshot {
   ma120: number | null
   volumeRatio: number
   bbPosition: number | null
-  maCrossState: 'golden' | 'dead' | 'neutral'
+  maCrossState: 'golden' | 'dead' | 'above' | 'below' | 'neutral'
+  maCrossDaysAgo: number | null  // 실제 교차 발생 후 경과 거래일 수
   hv20: number | null
   hv60: number | null
   volatilityRegime: 'low' | 'normal' | 'high' | 'extreme'

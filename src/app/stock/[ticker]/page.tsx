@@ -32,8 +32,9 @@ function deriveSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
     ma120: last(ind.ma.ma120),
     volumeRatio: ind.volumeRatio,
     maCrossState: ma5 != null && ma20 != null
-      ? ma5 > ma20 ? 'golden' : ma5 < ma20 ? 'dead' : 'neutral'
+      ? ma5 > ma20 ? 'above' : ma5 < ma20 ? 'below' : 'neutral'
       : 'neutral',
+    maCrossDaysAgo: null,
     hv20: null,
     hv60: null,
     volatilityRegime: 'normal',

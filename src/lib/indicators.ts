@@ -224,16 +224,41 @@ export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapsho
       ? (close - bbLower) / (bbUpper - bbLower)
       : null
 
-  // 5일선 vs 20일선 크로스 상태
+  // 5일선 vs 20일선 크로스 상태 — 실제 교차 시점만 golden/dead, 이후는 above/below
   let maCrossState: IndicatorSnapshot['maCrossState'] = 'neutral'
+  let maCrossDaysAgo: number | null = null
   if (ma5 !== null && ma20 !== null) {
     const prevMa5  = ind.ma.ma5[last - 1]
     const prevMa20 = ind.ma.ma20[last - 1]
     if (prevMa5 !== null && prevMa20 !== null) {
-      if (prevMa5 < prevMa20 && ma5 > ma20) maCrossState = 'golden'
-      else if (prevMa5 > prevMa20 && ma5 < ma20) maCrossState = 'dead'
-      else if (ma5 > ma20) maCrossState = 'golden'
-      else if (ma5 < ma20) maCrossState = 'dead'
+      if (prevMa5 < prevMa20 && ma5 > ma20) {
+        maCrossState  = 'golden'
+        maCrossDaysAgo = 0
+      } else if (prevMa5 > prevMa20 && ma5 < ma20) {
+        maCrossState  = 'dead'
+        maCrossDaysAgo = 0
+      } else if (ma5 > ma20) {
+        maCrossState = 'above'
+        // 마지막 교차 시점 탐색 (최대 120봉)
+        for (let i = last - 1; i >= Math.max(0, last - 120); i--) {
+          const m5 = ind.ma.ma5[i]; const m20 = ind.ma.ma20[i]
+          const pm5 = ind.ma.ma5[i - 1]; const pm20 = ind.ma.ma20[i - 1]
+          if (m5 !== null && m20 !== null && pm5 !== null && pm20 !== null && pm5 < pm20 && m5 >= m20) {
+            maCrossDaysAgo = last - i
+            break
+          }
+        }
+      } else if (ma5 < ma20) {
+        maCrossState = 'below'
+        for (let i = last - 1; i >= Math.max(0, last - 120); i--) {
+          const m5 = ind.ma.ma5[i]; const m20 = ind.ma.ma20[i]
+          const pm5 = ind.ma.ma5[i - 1]; const pm20 = ind.ma.ma20[i - 1]
+          if (m5 !== null && m20 !== null && pm5 !== null && pm20 !== null && pm5 > pm20 && m5 <= m20) {
+            maCrossDaysAgo = last - i
+            break
+          }
+        }
+      }
     }
   }
 
@@ -270,7 +295,7 @@ export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapsho
     bbUpper, bbMid, bbLower,
     ma5, ma20, ma60, ma120,
     volumeRatio: ind.volumeRatio,
-    bbPosition, maCrossState,
+    bbPosition, maCrossState, maCrossDaysAgo,
     hv20, hv60, volatilityRegime, bbWidthRatio,
   }
 }
