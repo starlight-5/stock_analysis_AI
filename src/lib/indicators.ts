@@ -217,7 +217,13 @@ export function calcADX(bars: OHLCVBar[], period = 14): Indicators['adx'] {
   const dx  = pDI.map((p, i) => {
     const s = p + mDI[i]; return s === 0 ? 0 : (Math.abs(p - mDI[i]) / s) * 100
   })
-  const adxSmooth = wilderSum(dx, period)  // length: n - 2*period + 1
+  // ADX = Wilder 평균 (합계가 아닌 EMA α=1/period): seed→단순평균, 이후→(prev*(p-1)+dx)/p
+  let adxVal = dx.slice(0, period).reduce((a, b) => a + b, 0) / period
+  const adxSmooth: number[] = [adxVal]
+  for (let i = period; i < dx.length; i++) {
+    adxVal = (adxVal * (period - 1) + dx[i]) / period
+    adxSmooth.push(adxVal)
+  }
 
   const r1 = (v: number) => Math.round(v * 10) / 10
   return {
