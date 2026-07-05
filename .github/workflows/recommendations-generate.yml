@@ -20,26 +20,11 @@ jobs:
           HTTP_STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
             --max-time 58 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            -H "Content-Type: application/json" \
             "$APP_URL/api/recommendations/generate")
 
-          RESPONSE=$(cat /tmp/response.txt)
           echo "HTTP 상태: $HTTP_STATUS"
-          echo "응답: $RESPONSE"
-
-          python3 - <<'PYEOF'
-import json, os
-
-with open('/tmp/response.txt') as f:
-    raw = f.read()
-
-try:
-    d = json.loads(raw)
-    print(f'누적 처리: {d.get("totalDone", "?")}종목  소요: {d.get("elapsed", "?")}')
-    print(f'완료 여부: {"완료" if d.get("isComplete") else "미완 — 다음 실행에서 계속"}')
-    for line in d.get('log', [])[-5:]:
-        print(line)
-except Exception as e:
-    print(f'JSON 파싱 실패 ({e}) — 원시 응답:')
-    print(raw[:1000])
-PYEOF
+          jq -r '
+            "누적 처리: \(.totalDone // "?")종목  소요: \(.elapsed // "?")",
+            "완료 여부: \(if .isComplete then "완료" else "미완 — 다음 실행에서 계속" end)",
+            (.log // [] | .[-5:] | .[])
+          ' /tmp/response.txt 2>/dev/null || cat /tmp/response.txt
