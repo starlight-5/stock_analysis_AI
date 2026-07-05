@@ -24,7 +24,7 @@ interface Props {
   stopLoss?: number
 }
 
-type TabKey = 'price' | 'rsi' | 'macd' | 'bollinger'
+type TabKey = 'price' | 'rsi' | 'macd' | 'bollinger' | 'adx' | 'obv'
 
 // ─── 캔들 커스텀 Bar ─────────────────────────────────────────────
 // Recharts에는 캔들 차트가 없어서 Bar shape으로 직접 구현
@@ -140,6 +140,10 @@ export default function StockChart({
         ma5:        indicators.ma.ma5[idx] ?? null,
         ma20:       indicators.ma.ma20[idx] ?? null,
         ma60:       indicators.ma.ma60[idx] ?? null,
+        adx:        indicators.adx.adx[idx] ?? null,
+        plusDI:     indicators.adx.plusDI[idx] ?? null,
+        minusDI:    indicators.adx.minusDI[idx] ?? null,
+        obv:        indicators.obv[idx] ?? null,
       }
     })
   }, [slicedBars, indicators, bars.length])
@@ -151,11 +155,11 @@ export default function StockChart({
       {/* 탭 + 범위 선택 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ display: 'flex', gap: 6 }}>
-          {(['price', 'bollinger', 'rsi', 'macd'] as TabKey[]).map((t) => (
+          {(['price', 'bollinger', 'rsi', 'macd', 'adx', 'obv'] as TabKey[]).map((t) => (
             <TabButton
               key={t}
               active={tab === t}
-              label={{ price: '주가', bollinger: '볼린저', rsi: 'RSI', macd: 'MACD' }[t]}
+              label={{ price: '주가', bollinger: '볼린저', rsi: 'RSI', macd: 'MACD', adx: 'ADX', obv: 'OBV' }[t]}
               onClick={() => setTab(t)}
             />
           ))}
@@ -259,6 +263,39 @@ export default function StockChart({
             />
             <Line type="monotone" dataKey="macdLine"   stroke="#1D9E75" strokeWidth={2} dot={false} name="MACD" connectNulls />
             <Line type="monotone" dataKey="signalLine" stroke="#E24B4A" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="시그널" connectNulls />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      )}
+
+      {/* ── ADX ── */}
+      {tab === 'adx' && (
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,.12)" />
+            <XAxis dataKey="dateShort" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} interval={Math.floor(range / tickCount)} />
+            <YAxis domain={[0, 'auto']} tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} width={35} />
+            <Tooltip formatter={(v: any) => v?.toFixed(1)} />
+            <ReferenceLine y={25} stroke="rgba(128,128,128,.5)" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: '추세장 25', fontSize: 11, fill: 'var(--color-text-secondary)', position: 'insideTopLeft' }} />
+            <Line type="monotone" dataKey="adx"     stroke="#EF9F27" strokeWidth={2} dot={false} name="ADX" connectNulls />
+            <Line type="monotone" dataKey="plusDI"  stroke="#1D9E75" strokeWidth={1.5} dot={false} name="+DI" connectNulls />
+            <Line type="monotone" dataKey="minusDI" stroke="#E24B4A" strokeWidth={1.5} dot={false} name="-DI" connectNulls />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      )}
+
+      {/* ── OBV ── */}
+      {tab === 'obv' && (
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,.12)" />
+            <XAxis dataKey="dateShort" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} interval={Math.floor(range / tickCount)} />
+            <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} width={60} tickFormatter={(v) => v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `${(v/1e3).toFixed(0)}K` : String(v)} />
+            <Tooltip formatter={(v: any) => v?.toLocaleString()} />
+            <ReferenceLine y={0} stroke="rgba(128,128,128,.4)" strokeWidth={0.5} />
+            <Line type="monotone" dataKey="obv" stroke="#534AB7" strokeWidth={2} dot={false} name="OBV" connectNulls />
             <Legend wrapperStyle={{ fontSize: 12 }} />
           </ComposedChart>
         </ResponsiveContainer>
