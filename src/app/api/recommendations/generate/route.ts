@@ -84,49 +84,48 @@ async function getTop3Sectors(): Promise<SectorPerf[]> {
 interface StockPick { ticker: string; name: string; reason: string }
 interface PickedStocks { us: StockPick[]; kr: StockPick[] }
 
-async function pickStocksForSector(apiKey: string, sector: SectorPerf): Promise<PickedStocks> {
-  const prompt = `섹터: ${sector.name} (1개월 수익률: ${sector.avgReturn1M > 0 ? '+' : ''}${sector.avgReturn1M.toFixed(1)}%)
-
-이 섹터에서 현재 가장 유망한 종목을 선정하세요.
-순수 JSON만 출력 (마크다운 없이):
-{
-  "us": [{"ticker": "NVDA", "name": "엔비디아", "reason": "한줄 투자 포인트"}],
-  "kr": [{"ticker": "005930", "name": "삼성전자", "reason": "한줄 투자 포인트"}]
-}
-
-규칙:
-- us: 정확히 20개, 미국 상장 종목, 티커는 영문 대문자 (예: NVDA, AAPL)
-- kr: 정확히 20개, 한국 상장 종목, ticker는 반드시 6자리 숫자 종목코드 (예: 005930, 000660). 한글명·ETF명 절대 금지
-- 해당 섹터와 직접 관련된 종목 우선, 블루칩·고성장주 혼합
-- 상장폐지·소형주·ETF 제외`
+async function callGeminiForPicks(apiKey: string, market: 'us' | 'kr', sector: SectorPerf): Promise<StockPick[]> {
+  const isUS = market === 'us'
+  const prompt = isUS
+    ? `섹터: ${sector.name} (1개월 수익률: ${sector.avgReturn1M > 0 ? '+' : ''}${sector.avgReturn1M.toFixed(1)}%)
+미국 상장 종목 10개를 JSON 배열로만 출력 (마크다운 없이):
+[{"ticker":"NVDA","name":"엔비디아","reason":"한줄 투자 포인트"}]
+규칙: 티커 영문 대문자, 해당 섹터 관련주, ETF·소형주 제외, 정확히 10개`
+    : `섹터: ${sector.name} (1개월 수익률: ${sector.avgReturn1M > 0 ? '+' : ''}${sector.avgReturn1M.toFixed(1)}%)
+한국 상장 종목 10개를 JSON 배열로만 출력 (마크다운 없이):
+[{"ticker":"005930","name":"삼성전자","reason":"한줄 투자 포인트"}]
+규칙: ticker는 반드시 6자리 숫자 종목코드, 해당 섹터 관련주, ETF·소형주 제외, 정확히 10개`
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4096 },
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 1024 },
       }),
       signal: AbortSignal.timeout(20000),
     }
   )
-  if (!res.ok) throw new Error(`Gemini pickStocks HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`)
   const json = await res.json()
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
-  const parsed = JSON.parse(raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+  const raw  = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]')
+    .replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+  const arr  = JSON.parse(raw)
+  const re   = isUS ? /^[A-Z]{1,5}$/ : /^\d{6}$/
+  return (Array.isArray(arr) ? arr : [])
+    .filter((s: any) => s?.ticker && re.test(s.ticker))
+    .slice(0, 10)
+    .map((s: any) => ({ ticker: s.ticker, name: s.name ?? s.ticker, reason: s.reason ?? '' }))
+}
 
-  return {
-    us: (Array.isArray(parsed.us) ? parsed.us : [])
-      .filter((s: any) => s?.ticker && /^[A-Z]{1,5}$/.test(s.ticker))
-      .slice(0, 20)
-      .map((s: any) => ({ ticker: s.ticker, name: s.name ?? s.ticker, reason: s.reason ?? '' })),
-    kr: (Array.isArray(parsed.kr) ? parsed.kr : [])
-      .filter((s: any) => s?.ticker && /^\d{6}$/.test(s.ticker))
-      .slice(0, 20)
-      .map((s: any) => ({ ticker: s.ticker, name: s.name ?? s.ticker, reason: s.reason ?? '' })),
-  }
+async function pickStocksForSector(apiKey: string, sector: SectorPerf): Promise<PickedStocks> {
+  const [us, kr] = await Promise.all([
+    callGeminiForPicks(apiKey, 'us', sector),
+    callGeminiForPicks(apiKey, 'kr', sector),
+  ])
+  return { us, kr }
 }
 
 // ─── GET Handler (Vercel Cron 진입점 + 어드민 수동 실행) ──────────
