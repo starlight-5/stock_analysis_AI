@@ -83,7 +83,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
 
   const rows = await prisma.position.findMany({
-    where: { userId: session.user.id },
+    where: { userId: session.user.id, status: 'active' },
     orderBy: { registeredAt: 'desc' },
   })
 
@@ -166,10 +166,7 @@ export async function DELETE(req: NextRequest) {
   })
   if (!existing) return NextResponse.json({ error: '포지션 없음' }, { status: 404 })
 
-  await prisma.position.update({
-    where: { id },
-    data: { status: 'closed', closedAt: new Date() },
-  })
+  await prisma.position.delete({ where: { id } })
 
   return NextResponse.json({ ok: true })
 }
