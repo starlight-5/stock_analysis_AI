@@ -18,7 +18,6 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
-import { getStrategyHistory, upsertStrategyHistory, buildPreviousContext } from '@/lib/strategyHistory'
 import type { StrategyResult, IndicatorSnapshot } from '@/types/stock'
 
 // ─── 전략 캐시 (10분 TTL) ────────────────────────────────────────
@@ -27,14 +26,14 @@ const strategyCache: Map<string, { data: object; expiresAt: number }> =
   (globalThis as any).__strategyCache
 const STRATEGY_TTL_MS = 10 * 60 * 1000
 
-function getCachedStrategy(ticker: string) {
-  const entry = strategyCache.get(ticker)
+function getCachedStrategy(key: string) {
+  const entry = strategyCache.get(key)
   if (!entry) return null
-  if (Date.now() > entry.expiresAt) { strategyCache.delete(ticker); return null }
+  if (Date.now() > entry.expiresAt) { strategyCache.delete(key); return null }
   return entry.data
 }
-function setCachedStrategy(ticker: string, data: object) {
-  strategyCache.set(ticker, { data, expiresAt: Date.now() + STRATEGY_TTL_MS })
+function setCachedStrategy(key: string, data: object) {
+  strategyCache.set(key, { data, expiresAt: Date.now() + STRATEGY_TTL_MS })
 }
 
 // ─── Yahoo Finance 뉴스 fetcher ──────────────────────────────────
@@ -116,7 +115,7 @@ async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
 
 // ─── 프롬프트 빌더 ───────────────────────────────────────────────
 
-function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, previousContext = '', entryPrice?: number): string {
+function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], earnings: EarningsData, positionContext = '', entryPrice?: number): string {
   const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
   const pct = (v: number | null) => v == null ? 'N/A' : `${(v * 100).toFixed(1)}%`
@@ -150,6 +149,7 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], 
 
   const priceUnit = isKR ? '원 단위 정수' : 'USD 소수점 2자리 숫자'
   const currentPrice = snap.close
+
 
   const bbPos = snap.bbPosition == null
     ? 'N/A'
@@ -217,7 +217,7 @@ function buildPrompt(ticker: string, snap: IndicatorSnapshot, news: NewsItem[], 
 - 현재가: ${fmtPrice(currentPrice)}
 - 가격 단위: ${priceUnit} (JSON 내 모든 price 필드에 이 단위를 사용할 것)
 ${entryPriceBlock}
-${previousContext}
+${positionContext}
 
 ## 기술적 지표 (일봉 기준 최신값)
 - RSI(14): ${fmt(snap.rsi, 1)}${snap.rsi == null ? '' : snap.rsi < 30 ? ' ⚠️ 과매도' : snap.rsi > 70 ? ' ⚠️ 과매수' : ''}
@@ -597,7 +597,7 @@ function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapshot): Str
   }
 }
 
-// ─── DB 포지션 → StrategyResult 변환 (런타임 검증 포함) ────────────
+// ─── DB 포지션 → StrategyResult 변환 ────────────────────────────────
 const VALID_SIGNALS = new Set(['strong_buy', 'buy', 'watch', 'sell', 'strong_sell'])
 
 function parsePositionToStrategy(position: {
@@ -613,45 +613,24 @@ function parsePositionToStrategy(position: {
   risks: unknown
   holding: unknown
 }): StrategyResult {
-  const toEntries = (raw: unknown): StrategyResult['buyStrategy']['entries'] => {
-    if (!Array.isArray(raw)) return []
-    return raw.map((e: any) => ({
-      price:  typeof e?.price  === 'number' ? e.price  : 0,
-      ratio:  typeof e?.ratio  === 'number' ? e.ratio  : 0,
-      reason: typeof e?.reason === 'string' ? e.reason : '',
-    }))
-  }
-
-  const toTargets = (raw: unknown): StrategyResult['sellStrategy']['targets'] => {
-    if (!Array.isArray(raw)) return []
-    return raw.map((t: any) => ({
-      price:  typeof t?.price  === 'number' ? t.price  : 0,
-      ratio:  typeof t?.ratio  === 'number' ? t.ratio  : 0,
-      reason: typeof t?.reason === 'string' ? t.reason : '',
-    }))
-  }
-
-  const toRisks = (raw: unknown): string[] => {
-    if (!Array.isArray(raw)) return []
-    return raw.map((r: any) => (typeof r === 'string' ? r : String(r)))
-  }
-
-  const h = (raw: unknown) => (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, any> : {})
+  const toArr = <T>(raw: unknown, map: (x: any) => T): T[] =>
+    Array.isArray(raw) ? raw.map(map) : []
+  const h = (raw: unknown): Record<string, any> =>
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, any> : {}
   const holding = h(position.holding)
-
   return {
-    ticker:       position.ticker,
-    generatedAt:  position.registeredAt.toISOString(),
-    summary:      position.summary,
-    signal:       VALID_SIGNALS.has(position.signal) ? (position.signal as StrategyResult['signal']) : 'watch',
+    ticker:      position.ticker,
+    generatedAt: position.registeredAt.toISOString(),
+    summary:     position.summary,
+    signal:      VALID_SIGNALS.has(position.signal) ? (position.signal as StrategyResult['signal']) : 'watch',
     buyStrategy: {
       type:           position.entryType === 'lump' ? 'lump' : 'split',
-      entries:        toEntries(position.entries),
+      entries:        toArr(position.entries, (e: any) => ({ price: e?.price ?? 0, ratio: e?.ratio ?? 0, reason: e?.reason ?? '' })),
       stopLoss:       position.stopLoss,
       stopLossReason: position.stopLossReason,
     },
-    sellStrategy: { targets: toTargets(position.targets) },
-    risks:   toRisks(position.risks),
+    sellStrategy: { targets: toArr(position.targets, (t: any) => ({ price: t?.price ?? 0, ratio: t?.ratio ?? 0, reason: t?.reason ?? '' })) },
+    risks:   toArr(position.risks, (r: any) => (typeof r === 'string' ? r : String(r))),
     holding: {
       minWeeks:        typeof holding.minWeeks    === 'number' ? holding.minWeeks    : 2,
       targetWeeks:     typeof holding.targetWeeks === 'number' ? holding.targetWeeks : 6,
@@ -661,6 +640,42 @@ function parsePositionToStrategy(position: {
     },
     rawText: '',
   }
+}
+
+// ─── 포지션 → Gemini 프롬프트 컨텍스트 변환 ─────────────────────────
+function buildPositionContext(position: {
+  registeredAt: Date
+  signal: string
+  summary: string
+  entryType: string
+  entries: unknown
+  stopLoss: number
+  stopLossReason: string
+}, isKR: boolean): string {
+  const fmtPrice = (v: number) =>
+    isKR ? `${Math.round(v).toLocaleString('ko-KR')}원` : `$${v.toFixed(2)}`
+
+  const daysSince = Math.floor((Date.now() - position.registeredAt.getTime()) / (1000 * 60 * 60 * 24))
+
+  const entriesText = Array.isArray(position.entries)
+    ? (position.entries as any[]).map((e: any, i: number) =>
+        `  ${i + 1}차: ${fmtPrice(e.price ?? 0)} (${e.ratio ?? 0}%)`
+      ).join('\n')
+    : '정보 없음'
+
+  return `
+## 기존 등록 포지션 (${daysSince}일 전 등록)
+- 등록 당시 판정: ${position.signal.toUpperCase()}
+- 매수 유형: ${position.entryType === 'lump' ? '일괄 매수' : '분할 매수'}
+- 추천 진입가:
+${entriesText}
+- 손절선: ${fmtPrice(position.stopLoss)} (${position.stopLossReason})
+- 당시 요약: ${position.summary}
+
+위 포지션을 보유 중인 상황에서 현재 시황을 재분석하세요:
+1. summary에 등록 당시(${position.signal}) 대비 현재 시황 변화를 반드시 언급하고, 보유 유지·추가매수·손절 중 명확한 행동을 권고할 것
+2. stopLoss는 등록 당시 손절선(${fmtPrice(position.stopLoss)}) 및 현재 지지선을 함께 고려하여 설정할 것
+3. targets는 현재 기술적 레벨 기준으로 재설정할 것`
 }
 
 // ─── API Route Handler ───────────────────────────────────────────
@@ -679,6 +694,7 @@ export async function POST(req: NextRequest) {
     }
 
     ticker = ticker.toUpperCase()
+    const isKR = /^\d{6}$/.test(ticker)
     const forceRefresh = !!body.forceRefresh
     const entryPrice: number | undefined = typeof body.entryPrice === 'number' && isFinite(body.entryPrice) && body.entryPrice > 0
       ? body.entryPrice
@@ -688,7 +704,7 @@ export async function POST(req: NextRequest) {
     const userId = (session?.user as any)?.id as string | undefined
 
     if (!forceRefresh) {
-      // 1순위: DB — 활성 포지션에 저장된 전략
+      // 1순위: DB 포지션 전략 (Gemini 없음)
       if (userId) {
         const position = await prisma.position.findFirst({
           where: { userId, ticker, status: 'active' },
@@ -696,14 +712,23 @@ export async function POST(req: NextRequest) {
         if (position) {
           const result = await fetchStockData(ticker)
           const currentSnap = getSnapshot(result.bars, calcIndicators(result.bars))
-          const strategy = parsePositionToStrategy(position)
-          return NextResponse.json({ strategy, snapshot: currentSnap, fromDB: true })
+          return NextResponse.json({ strategy: parsePositionToStrategy(position), snapshot: currentSnap, fromDB: true })
         }
       }
-
       // 2순위: 서버 캐시 (10분 TTL)
       const cached = getCachedStrategy(ticker)
       if (cached) return NextResponse.json({ ...cached, fromCache: true })
+      // 데이터 없음 → 빈 화면
+      return NextResponse.json({ strategy: null, snapshot: null })
+    }
+
+    // forceRefresh=true: 포지션 컨텍스트 포함하여 Gemini 분석
+    let positionContext = ''
+    if (userId) {
+      const position = await prisma.position.findFirst({
+        where: { userId, ticker, status: 'active' },
+      })
+      if (position) positionContext = buildPositionContext(position, isKR)
     }
 
     // 1. 주가 데이터 페치
@@ -723,18 +748,13 @@ export async function POST(req: NextRequest) {
       throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
     }
 
-    // 4. 뉴스 + 실적 + 이전 전략 이력 병렬 fetch → 프롬프트 조립
-    const [news, earnings, previousHistory] = await Promise.all([
+    // 4. 뉴스 + 실적 병렬 fetch → 프롬프트 조립
+    const [news, earnings] = await Promise.all([
       fetchYahooNews(ticker),
       fetchEarnings(ticker),
-      userId ? getStrategyHistory(userId, ticker) : Promise.resolve(null),
     ])
 
-    const previousContext = previousHistory
-      ? buildPreviousContext(previousHistory, snap, /^\d{6}$/.test(ticker))
-      : ''
-
-    const prompt = buildPrompt(ticker, snap, news, earnings, previousContext, entryPrice)
+    const prompt = buildPrompt(ticker, snap, news, earnings, positionContext, entryPrice)
 
     // 5. Gemini REST API 호출
     const response = await fetch(
@@ -774,16 +794,6 @@ export async function POST(req: NextRequest) {
 
     // 6. Gemini 응답 파싱 및 결과 구조화
     const strategy = parseStrategyResponse(rawText, ticker)
-
-    // 7. 전략 이력 저장 (로그인 사용자만)
-    if (userId) {
-      await upsertStrategyHistory(userId, ticker, {
-        signal:   strategy.signal,
-        summary:  strategy.summary,
-        price:    snap.close,
-        snapshot: snap,
-      })
-    }
 
     const responseData = {
       strategy,

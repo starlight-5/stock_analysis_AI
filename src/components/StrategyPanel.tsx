@@ -167,19 +167,19 @@ interface Props {
   strategy: StrategyResult | null
   snapshot: IndicatorSnapshot | null
   isLoading: boolean
+  isGeminiAnalysis?: boolean
   isFallback: boolean
   fromCache: boolean
   fromDB?: boolean
   livePrice?: number | null
   liveExt?: import('@/types/price').ExtInfo | null
   onAnalyze: (entryPrice?: number) => void
-  onForceRefresh: (entryPrice?: number) => void
 }
 
 export default function StrategyPanel({
-  ticker, name, strategy, snapshot, isLoading, isFallback, fromCache, fromDB,
+  ticker, name, strategy, snapshot, isLoading, isGeminiAnalysis, isFallback, fromCache, fromDB,
   livePrice, liveExt,
-  onAnalyze, onForceRefresh,
+  onAnalyze,
 }: Props) {
   const [showRaw,          setShowRaw]          = useState(false)
   const [registering,      setRegistering]      = useState(false)
@@ -277,7 +277,7 @@ export default function StrategyPanel({
               fontSize: 13, cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'all .15s',
             }}
           >
-            {isLoading ? '분석 중…' : '전략 분석'}
+            {isLoading ? '분석 중…' : strategy ? '재분석' : '전략 분석'}
           </button>
         </div>
         {/* 진입가 입력 */}
@@ -327,8 +327,10 @@ export default function StrategyPanel({
             animation: 'spin 0.7s linear infinite',
             margin: '0 auto 12px',
           }} />
-          <div style={{ marginBottom: 4 }}>지표 계산 + Gemini AI 분석 중</div>
-          <div style={{ fontSize: 11 }}>약 5~10초 소요됩니다</div>
+          <div style={{ marginBottom: 4 }}>
+            {isGeminiAnalysis ? '지표 계산 + Gemini AI 분석 중' : '포지션 전략 로드 중'}
+          </div>
+          {isGeminiAnalysis && <div style={{ fontSize: 11 }}>약 5~10초 소요됩니다</div>}
         </div>
       )}
 
@@ -376,19 +378,6 @@ export default function StrategyPanel({
               }}>
                 캐시됨
               </span>
-            )}
-            {(fromCache || fromDB) && (
-              <button
-                onClick={() => onForceRefresh(parsedEntryPrice)}
-                disabled={isLoading}
-                style={{
-                  fontSize: 11, padding: '1px 8px', borderRadius: 10,
-                  background: 'none', border: '0.5px solid var(--color-border-secondary)',
-                  color: 'var(--color-text-secondary)', cursor: 'pointer',
-                }}
-              >
-                새로고침
-              </button>
             )}
           </div>
 
