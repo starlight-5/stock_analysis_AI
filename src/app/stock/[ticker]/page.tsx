@@ -35,10 +35,8 @@ function deriveSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
       ? ma5 > ma20 ? 'above' : ma5 < ma20 ? 'below' : 'neutral'
       : 'neutral',
     maCrossDaysAgo: null,
-    hv20: null,
-    hv60: null,
-    volatilityRegime: 'normal',
-    bbWidthRatio: null,
+    hv20: null, hv60: null, volatilityRegime: 'normal', bbWidthRatio: null,
+    adx: null, adxTrend: null, atr14: null, obvDivergence: 'none', fibLevels: null,
   }
 }
 

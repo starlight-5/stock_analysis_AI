@@ -27,7 +27,14 @@ export interface Indicators {
     ma60: (number | null)[]
     ma120: (number | null)[]
   }
-  volumeRatio: number   // 최근 5일 평균 / 20일 평균
+  volumeRatio: number
+  atr: (number | null)[]
+  adx: {
+    adx: (number | null)[]
+    plusDI: (number | null)[]
+    minusDI: (number | null)[]
+  }
+  obv: number[]
 }
 
 // ─── 데이터소스 응답 ──────────────────────────────────────────────
@@ -104,11 +111,19 @@ export interface IndicatorSnapshot {
   volumeRatio: number
   bbPosition: number | null
   maCrossState: 'golden' | 'dead' | 'above' | 'below' | 'neutral'
-  maCrossDaysAgo: number | null  // 실제 교차 발생 후 경과 거래일 수
+  maCrossDaysAgo: number | null
   hv20: number | null
   hv60: number | null
   volatilityRegime: 'low' | 'normal' | 'high' | 'extreme'
   bbWidthRatio: number | null
+  adx: number | null
+  adxTrend: 'strong_up' | 'strong_down' | 'ranging' | 'weak' | null
+  atr14: number | null
+  obvDivergence: 'bullish' | 'bearish' | 'none'
+  fibLevels: {
+    swingHigh: number; swingLow: number
+    l236: number; l382: number; l500: number; l618: number
+  } | null
 }
 
 // ─── 관심종목 ─────────────────────────────────────────────────────

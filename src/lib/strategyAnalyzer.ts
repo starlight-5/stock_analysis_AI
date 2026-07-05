@@ -206,6 +206,11 @@ ${positionContext}
 - 거래량 비율 (최근5일/20일평균): ${fmt(snap.volumeRatio, 2)}배
 - 역사적 변동성: HV20 ${fmt(snap.hv20, 1)}% / HV60 ${fmt(snap.hv60, 1)}% (비율 ${hvRatio != null ? hvRatio.toFixed(1) : 'N/A'}배)
 - 변동성 구간: ${regimeLabel[snap.volatilityRegime]}
+- ADX(14): ${fmt(snap.adx, 1)}${snap.adx == null ? '' : snap.adx > 25 ? ' ▶ 추세장' : snap.adx < 20 ? ' ▶ 횡보장 (RSI·BB 신뢰도 ↑)' : ' ▶ 약한 추세'}${snap.adxTrend === 'strong_up' ? ' / +DI 우세 (상승 추세)' : snap.adxTrend === 'strong_down' ? ' / -DI 우세 (하락 추세)' : ''}
+- ATR(14): ${fmtPrice(snap.atr14)} (일평균 변동폭 — 손절폭 기준)
+- OBV 다이버전스: ${snap.obvDivergence === 'bearish' ? '⚠️ 약세 (가격 상승 중 OBV 하락 — 상승 소진 신호)' : snap.obvDivergence === 'bullish' ? '✅ 강세 (가격 하락 중 OBV 상승 — 매집 신호)' : '없음'}${snap.fibLevels != null ? `
+- 피보나치 되돌림 (60봉 스윙): 고점 ${fmtPrice(snap.fibLevels.swingHigh)} / 저점 ${fmtPrice(snap.fibLevels.swingLow)}
+  → 23.6% ${fmtPrice(snap.fibLevels.l236)} / 38.2% ${fmtPrice(snap.fibLevels.l382)} / 50% ${fmtPrice(snap.fibLevels.l500)} / 61.8% ${fmtPrice(snap.fibLevels.l618)}` : ''}
 
 ## 최근 뉴스 (Yahoo Finance)
 ${newsSection}
@@ -242,16 +247,25 @@ ${volatilityBlock}
 
 ## 전략 작성 규칙
 1. split 조건: RSI < 40 또는 하락 추세 또는 BB 하단 근처 또는 부정적 뉴스 존재 → 2~3회 분할 진입
-2. lump 조건: 강한 모멘텀 (거래량 급증 + 골든크로스 + RSI 50~65) AND 긍정적/중립 뉴스 AND 변동성 구간 정상
-3. 볼린저 밴드 하단 판단 기준 (BB 폭 비율 참고):
+2. lump 조건: ADX > 25(추세장) AND 거래량 급증 AND 골든크로스/above AND RSI 50~65 AND 긍정적/중립 뉴스 — 모두 충족 시에만 lump
+3. ADX 레짐별 지표 우선순위:
+   - ADX > 25 (추세장): MACD·골든크로스 우선, RSI 과매수 신호는 하향 가중
+   - ADX < 20 (횡보장): RSI·BB 반전 신호 신뢰, MACD는 참고만
+4. 볼린저 밴드 하단 판단 기준 (BB 폭 비율 참고):
    - BB 폭 비율 < 1.5 (정상/수축) → 평균 회귀 가능성 고려 → 분할 매수 검토
    - BB 폭 비율 ≥ 1.5 (급팽창 중) + 거래량 급증 → 추세 하락 가능성 → 평균 회귀 가정 보류, 관망 우선
-4. 목표가 근거 규칙 (가장 중요):
+5. OBV 다이버전스 반영:
+   - 약세 다이버전스 (가격↑ + OBV↓): signal 하향 조정 및 risks에 포함 필수
+   - 강세 다이버전스 (가격↓ + OBV↑): 매집 신호로 signal 상향 근거 가능
+6. 목표가 근거 규칙 (가장 중요):
    - targets의 reason은 반드시 구체적인 기술적 레벨을 명시할 것
-     예시 (O): "MA60(${fmtPrice(snap.ma60)}) 저항선 도달", "볼린저 밴드 상단(${fmtPrice(snap.bbUpper)}) 저항", "MA20(${fmtPrice(snap.ma20)}) 단기 저항선"
-     예시 (X): "+5% 수익 실현 구간", "+12% 목표가", "단기 익절 구간" — 단순 수익률 표기는 근거가 아니므로 절대 금지
-   - 1차 목표가는 가능하면 MA60(${fmtPrice(snap.ma60)}) 또는 BB 중심선(${fmtPrice(snap.bbMid)}) 근처로 설정
-   - 2차 목표가는 MA60(${fmtPrice(snap.ma60)}) 또는 BB 상단(${fmtPrice(snap.bbUpper)}) 근처로 설정
+     예시 (O): "MA60(${fmtPrice(snap.ma60)}) 저항선 도달", "볼린저 밴드 상단(${fmtPrice(snap.bbUpper)}) 저항", "피보나치 38.2%(${fmtPrice(snap.fibLevels?.l382 ?? null)}) 저항"
+     예시 (X): "+5% 수익 실현 구간", "+12% 목표가" — 단순 수익률 표기는 절대 금지
+   - 1차 목표가: MA60(${fmtPrice(snap.ma60)}) / BB 중심선(${fmtPrice(snap.bbMid)}) / 피보나치 38.2%(${fmtPrice(snap.fibLevels?.l382 ?? null)}) 중 가까운 레벨
+   - 2차 목표가: BB 상단(${fmtPrice(snap.bbUpper)}) / 피보나치 23.6%(${fmtPrice(snap.fibLevels?.l236 ?? null)}) / 스윙 고점(${fmtPrice(snap.fibLevels?.swingHigh ?? null)}) 중 선택
+7. 손절 설정 (ATR 기반):
+   - stopLoss = 주요 지지선 - ATR(14)(${fmtPrice(snap.atr14)}) × 1.5 (ATR 활용 가능 시)
+   - ATR 미산출 시 지지선 × 0.97 fallback
 5. split 시 entries 2개 이상, ratio 합계 정확히 100
 6. 모든 price 값은 ${priceUnit}로 출력 (문자열 아닌 숫자)
 7. risks 최소 3개, 뉴스에서 발견된 리스크 우선 반영
@@ -355,6 +369,15 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
   const rsi    = snap.rsi ?? 50
   const bbPos  = snap.bbPosition ?? 0.5
 
+  const adxVal     = snap.adx ?? 0
+  const isStrongTrend = adxVal > 25
+  const isRanging     = adxVal < 20
+  // ADX 레짐: 추세장→MACD/크로스 가중, 횡보장→RSI/BB 가중
+  const rW = isStrongTrend ? 0.5 : isRanging ? 1.5 : 1
+  const bW = isStrongTrend ? 0.5 : isRanging ? 1.5 : 1
+  const mW = isStrongTrend ? 1.5 : isRanging ? 0.5 : 1
+  const cW = isStrongTrend ? 1.5 : isRanging ? 0.5 : 1
+
   const rsiScore   = rsi < 30 ? 2 : rsi < 40 ? 1 : rsi > 70 ? -2 : rsi > 60 ? -1 : 0
   const bbScore    = bbPos < 0.15 ? 2 : bbPos < 0.35 ? 1 : bbPos > 0.85 ? -2 : bbPos > 0.65 ? -1 : 0
   const macdScore  = (() => {
@@ -365,12 +388,13 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
   })()
   const crossScore = (snap.maCrossState === 'golden' || snap.maCrossState === 'above') ? 1
     : (snap.maCrossState === 'dead' || snap.maCrossState === 'below') ? -1 : 0
-  const baseScore  = rsiScore + bbScore + macdScore + crossScore
+  const obvScore   = snap.obvDivergence === 'bullish' ? 1 : snap.obvDivergence === 'bearish' ? -1 : 0
+  const baseScore  = rsiScore * rW + bbScore * bW + macdScore * mW + crossScore * cW
   const volScore   = (() => {
     if ((snap.volumeRatio ?? 0) < 1.5) return 0
     return baseScore > 0 ? 1 : baseScore < 0 ? -1 : 0
   })()
-  const totalScore = baseScore + volScore
+  const totalScore = Math.round(baseScore + volScore + obvScore)
 
   const signal: StrategyResult['signal'] =
     totalScore >= 5  ? 'strong_buy'  :
@@ -383,6 +407,9 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
   const resist  = snap.ma60 != null && snap.ma60 > price ? snap.ma60 : snap.bbUpper != null ? snap.bbUpper : price * 1.08
   const ma20Str = snap.ma20 != null ? (isKR ? `${Math.round(snap.ma20).toLocaleString('ko-KR')}원` : `$${snap.ma20.toFixed(2)}`) : '근처'
   const ma60Str = snap.ma60 != null ? (isKR ? `${Math.round(snap.ma60).toLocaleString('ko-KR')}원` : `$${snap.ma60.toFixed(2)}`) : '근처'
+  // ATR 기반 손절 계산 (ATR 없으면 고정 비율 fallback)
+  const calcStop = (base: number) =>
+    snap.atr14 != null ? r(base - 1.5 * snap.atr14) : r(base * 0.97)
 
   const bullCues: string[] = []
   const bearCues: string[] = []
@@ -410,7 +437,7 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
       { price: r(price * 0.99), ratio: 40, reason: `1차 — ${bullCues[0] ?? 'BB 하단 근접'}` },
       { price: r(Math.min(price * 0.96, support * 1.01)), ratio: 60, reason: `2차 — MA20(${ma20Str}) 지지 확인 비중 확대` },
     ]
-    stopLoss = r(support * 0.97); stopLossReason = `MA20(${ma20Str}) 하향 이탈 시 손절`
+    stopLoss = calcStop(support); stopLossReason = `MA20(${ma20Str}) 하방 ATR×1.5 기준 손절`
     targets = [
       { price: r(price * 1.07), ratio: 50, reason: 'BB 중심선 도달 1차 익절' },
       { price: r(Math.max(resist, price * 1.14)), ratio: 50, reason: `MA60(${ma60Str}) 저항 돌파 시 전량 익절` },
@@ -426,7 +453,7 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
       { price: r(price * 0.99), ratio: 50, reason: `1차 — ${bullCues[0] ?? '현재가 근처'}` },
       { price: r(Math.min(price * 0.96, support * 1.005)), ratio: 50, reason: `2차 — MA20(${ma20Str}) 지지 후 추가` },
     ]
-    stopLoss = r(support * 0.96); stopLossReason = `MA20(${ma20Str}) 붕괴 시 손절`
+    stopLoss = calcStop(support); stopLossReason = `MA20(${ma20Str}) 하방 ATR×1.5 기준 손절`
     targets = [
       { price: r(price * 1.06), ratio: 60, reason: '단기 저항 1차 익절' },
       { price: r(Math.max(resist, price * 1.12)), ratio: 40, reason: `MA60(${ma60Str}) 중기 저항 2차 익절` },
@@ -439,7 +466,7 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
   } else if (signal === 'strong_sell') {
     summary = `${ticker}: ${bearCues.join(' · ')} 동시 발생 — 현재 진입 비추천. 큰 폭 하락 후 재진입 대기 권고. (종합 점수 ${totalScore}/7)`
     entries = [{ price: r(price * 0.88), ratio: 100, reason: `급락 후 MA60(${ma60Str}) 근처에서만 보수적 재진입 검토` }]
-    stopLoss = r(price * 0.82); stopLossReason = '추세 완전 이탈 시 즉시 손절'; targets = []
+    stopLoss = calcStop(price * 0.85); stopLossReason = '추세 완전 이탈 시 즉시 손절'; targets = []
     risks = [
       `${bearCues.join(' · ')} — 복수 지표 동시 약세`,
       (snap.volumeRatio ?? 0) > 1.5 ? '높은 거래량 동반 하락 — 투매 징후' : '고점 매수자 차익 매물 출회 우려',
@@ -448,7 +475,7 @@ export function generateRuleBasedStrategy(ticker: string, snap: IndicatorSnapsho
   } else if (signal === 'sell') {
     summary = `${ticker}: ${bearCues.join(' · ')} — 현재 진입 비추천. 조정 대기 후 매수 검토. (종합 점수 ${totalScore}/7)`
     entries = [{ price: r(price * 0.93), ratio: 100, reason: `조정 후 MA20(${ma20Str}) 지지 확인 시 재진입` }]
-    stopLoss = r(price * 0.87); stopLossReason = `MA20(${ma20Str}) 붕괴 시 추가 하락 대비 손절`
+    stopLoss = calcStop(price * 0.92); stopLossReason = `MA20(${ma20Str}) 붕괴 시 추가 하락 대비 손절`
     targets = [
       { price: r(price * 1.04), ratio: 50, reason: '보유 포지션 1차 비중 축소' },
       { price: r(price * 1.08), ratio: 50, reason: '오버슈팅 시 잔여 전량 익절' },

@@ -165,6 +165,80 @@ export function calcMA(closes: number[]): Indicators['ma'] {
   }
 }
 
+// ─── ATR (Average True Range, Wilder 14) ────────────────────────
+export function calcATR(bars: OHLCVBar[], period = 14): (number | null)[] {
+  if (bars.length <= period) return Array(bars.length).fill(null)
+  const trs: number[] = []
+  for (let i = 1; i < bars.length; i++) {
+    const h = bars[i].high, l = bars[i].low, pc = bars[i - 1].close
+    trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)))
+  }
+  // Wilder: 첫 ATR = 단순 평균, 이후 (prevATR*(p-1)+TR)/p
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period
+  const result: (number | null)[] = [...Array(period).fill(null), atr]
+  for (let i = period; i < trs.length; i++) {
+    atr = (atr * (period - 1) + trs[i]) / period
+    result.push(atr)
+  }
+  return result
+}
+
+// ─── ADX (Average Directional Index, Wilder 14) ─────────────────
+export function calcADX(bars: OHLCVBar[], period = 14): Indicators['adx'] {
+  const n = bars.length
+  const nullArr = (): (number | null)[] => Array(n).fill(null)
+  if (n < period * 2) return { adx: nullArr(), plusDI: nullArr(), minusDI: nullArr() }
+
+  const trs: number[] = [], pDMs: number[] = [], mDMs: number[] = []
+  for (let i = 1; i < n; i++) {
+    const h = bars[i].high, l = bars[i].low, pc = bars[i - 1].close
+    const ph = bars[i - 1].high, pl = bars[i - 1].low
+    trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)))
+    const up = h - ph, dn = pl - l
+    pDMs.push(up > dn && up > 0 ? up : 0)
+    mDMs.push(dn > up && dn > 0 ? dn : 0)
+  }
+
+  // Wilder 누적 (초기합 → 롤링)
+  function wilderSum(vals: number[], p: number): number[] {
+    const out: number[] = []
+    let s = vals.slice(0, p).reduce((a, b) => a + b, 0)
+    out.push(s)
+    for (let i = p; i < vals.length; i++) { s = s - s / p + vals[i]; out.push(s) }
+    return out
+  }
+
+  const sTR = wilderSum(trs, period)   // length: n - period
+  const sPDM = wilderSum(pDMs, period)
+  const sMDM = wilderSum(mDMs, period)
+
+  const pDI = sTR.map((tr, i) => tr === 0 ? 0 : (sPDM[i] / tr) * 100)
+  const mDI = sTR.map((tr, i) => tr === 0 ? 0 : (sMDM[i] / tr) * 100)
+  const dx  = pDI.map((p, i) => {
+    const s = p + mDI[i]; return s === 0 ? 0 : (Math.abs(p - mDI[i]) / s) * 100
+  })
+  const adxSmooth = wilderSum(dx, period)  // length: n - 2*period + 1
+
+  const r1 = (v: number) => Math.round(v * 10) / 10
+  return {
+    adx:     [...Array(2 * period - 1).fill(null), ...adxSmooth.map(r1)],
+    plusDI:  [...Array(period).fill(null), ...pDI.map(r1)],
+    minusDI: [...Array(period).fill(null), ...mDI.map(r1)],
+  }
+}
+
+// ─── OBV (On-Balance Volume) ─────────────────────────────────────
+export function calcOBV(bars: OHLCVBar[]): number[] {
+  const obv: number[] = [0]
+  for (let i = 1; i < bars.length; i++) {
+    const prev = obv[i - 1], vol = bars[i].volume
+    if (bars[i].close > bars[i - 1].close)      obv.push(prev + vol)
+    else if (bars[i].close < bars[i - 1].close) obv.push(prev - vol)
+    else                                          obv.push(prev)
+  }
+  return obv
+}
+
 // ─── 역사적 변동성 ────────────────────────────────────────────────
 /** 연율화 역사적 변동성: 최근 period일 로그수익률의 표준편차 × √252 × 100 (%) */
 function calcHV(bars: OHLCVBar[], period: number): number | null {
@@ -197,6 +271,9 @@ export function calcIndicators(bars: OHLCVBar[]): Indicators {
     bollinger:   calcBollinger(closes),
     ma:          calcMA(closes),
     volumeRatio: calcVolumeRatio(volumes),
+    atr:         calcATR(bars),
+    adx:         calcADX(bars),
+    obv:         calcOBV(bars),
   }
 }
 
@@ -290,6 +367,47 @@ export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapsho
     return avgWidth === 0 ? null : Math.round((currentWidth / avgWidth) * 100) / 100
   })()
 
+  // ── ADX ─────────────────────────────────────────────────────────
+  const adxVal    = ind.adx.adx[last]    ?? null
+  const plusDIVal = ind.adx.plusDI[last] ?? null
+  const minusDIVal = ind.adx.minusDI[last] ?? null
+  const adxTrend: IndicatorSnapshot['adxTrend'] = adxVal == null ? null
+    : adxVal > 25 && plusDIVal != null && minusDIVal != null && plusDIVal > minusDIVal ? 'strong_up'
+    : adxVal > 25 ? 'strong_down'
+    : adxVal < 20 ? 'ranging'
+    : 'weak'
+
+  // ── ATR ─────────────────────────────────────────────────────────
+  const atr14 = ind.atr[last] ?? null
+
+  // ── OBV 다이버전스 (20봉 비교) ───────────────────────────────────
+  const OBV_WIN = 20
+  const obvDivergence: IndicatorSnapshot['obvDivergence'] = (() => {
+    if (last < OBV_WIN) return 'none'
+    const dObv   = ind.obv[last] - ind.obv[last - OBV_WIN]
+    const dPrice = bars[last].close - bars[last - OBV_WIN].close
+    const pPrev  = bars[last - OBV_WIN].close
+    if (dPrice > pPrev * 0.02 && dObv < 0) return 'bearish'
+    if (dPrice < -pPrev * 0.02 && dObv > 0) return 'bullish'
+    return 'none'
+  })()
+
+  // ── 피보나치 되돌림 (최근 60봉 스윙 고/저점) ────────────────────
+  const fibLevels = (() => {
+    const slice = bars.slice(Math.max(0, last - 59), last + 1)
+    const swingHigh = Math.max(...slice.map(b => b.high))
+    const swingLow  = Math.min(...slice.map(b => b.low))
+    const range = swingHigh - swingLow
+    if (range === 0) return null
+    return {
+      swingHigh, swingLow,
+      l236: swingHigh - 0.236 * range,
+      l382: swingHigh - 0.382 * range,
+      l500: swingHigh - 0.500 * range,
+      l618: swingHigh - 0.618 * range,
+    }
+  })()
+
   return {
     close, rsi, macd, signal, histogram,
     bbUpper, bbMid, bbLower,
@@ -297,5 +415,6 @@ export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapsho
     volumeRatio: ind.volumeRatio,
     bbPosition, maCrossState, maCrossDaysAgo,
     hv20, hv60, volatilityRegime, bbWidthRatio,
+    adx: adxVal, adxTrend, atr14, obvDivergence, fibLevels,
   }
 }

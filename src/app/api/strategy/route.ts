@@ -221,6 +221,7 @@ export async function POST(req: NextRequest) {
       ma5: 100000, ma20: 100000, ma60: 100000, ma120: 100000,
       volumeRatio: 1.0, bbPosition: 0.5, maCrossState: 'neutral', maCrossDaysAgo: null,
       hv20: null, hv60: null, volatilityRegime: 'normal', bbWidthRatio: null,
+      adx: null, adxTrend: null, atr14: null, obvDivergence: 'none', fibLevels: null,
     }
 
     return NextResponse.json({
