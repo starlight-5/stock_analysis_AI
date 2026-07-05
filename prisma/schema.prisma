@@ -110,6 +110,29 @@ model KisTokenCache {
   updatedAt DateTime @updatedAt
 }
 
+// ─── 일별 종목 추천 (섹터 기반 자동 전략 분석) ────────────────────
+
+model DailyRecommendation {
+  id          String   @id @default(cuid())
+  date        String   // "2026-07-05" (KST 기준)
+  sectorId    String
+  sectorName  String
+  sectorEmoji String
+  ticker      String
+  name        String
+  market      String   // "US" | "KR"
+  reason      String   // 섹터 내 선정 이유
+  strategy    Json     // StrategyResult
+  snapshot    Json     // IndicatorSnapshot
+  signal      String   // 빠른 필터용 (strong_buy | buy | watch | sell | strong_sell)
+  fallback    Boolean  @default(false) // true = 규칙 기반 폴백
+  generatedAt DateTime @default(now())
+
+  @@unique([date, ticker])
+  @@index([date, sectorId])
+  @@index([date, signal])
+}
+
 // ─── 관심종목 ─────────────────────────────────────────────────────
 
 model WatchlistItem {
