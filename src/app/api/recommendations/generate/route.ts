@@ -107,7 +107,7 @@ async function pickStocksForSector(apiKey: string, sector: SectorPerf): Promise<
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 1024 },
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4096 },
       }),
       signal: AbortSignal.timeout(20000),
     }
