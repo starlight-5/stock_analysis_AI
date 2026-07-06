@@ -12,46 +12,52 @@ export const IS_KR = (t: string) => /^\d{6}$/.test(t)
 const priceCache: Map<string, { data: PriceData; exp: number }> = (globalThis as any).__priceCache2
 
 // ─── US: Yahoo Finance (정규장 + 시간외) ──────────────────────────
+// v7 quote API(marketState·pre/postMarketPrice 제공)가 401 Unauthorized로 막혀 있어,
+// v8 차트 API의 1분봉(includePrePost)으로 직접 세션 판별 + 시간외가를 계산한다.
 export async function fetchUSPrice(ticker: string): Promise<PriceData> {
   const hit = priceCache.get(ticker)
   if (hit && Date.now() < hit.exp) return hit.data
 
   try {
-    // v7 quote API: marketState + pre/postMarketPrice 를 더 안정적으로 제공
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}&fields=regularMarketPrice,previousClose,preMarketPrice,postMarketPrice,marketState`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d&includePrePost=true`,
       {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
         signal: AbortSignal.timeout(8000),
       }
     )
+    if (!res.ok) throw new Error(`chart HTTP ${res.status}`)
     const json = await res.json()
-    const q = json.quoteResponse?.result?.[0]
+    const result = json.chart?.result?.[0]
+    if (!result) throw new Error('차트 결과 없음')
 
-    if (!q) throw new Error('no quote')
+    const meta = result.meta
+    const price: number | null = meta?.regularMarketPrice ?? meta?.previousClose ?? null
+    if (price == null) throw new Error('가격 없음')
 
-    const price: number | null = q.regularMarketPrice ?? q.previousClose ?? null
-    const marketState: string = q.marketState ?? 'CLOSED'
+    const timestamps: number[] = result.timestamp ?? []
+    const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? []
+    const nowSec = Date.now() / 1000
+    const tp = meta.currentTradingPeriod
+
+    const inPre  = !!tp?.pre  && nowSec >= tp.pre.start  && nowSec < tp.pre.end
+    const inPost = !!tp?.post && nowSec >= tp.post.start && nowSec < tp.post.end
 
     let ext: ExtInfo | null = null
-
-    if (marketState === 'PRE' && q.preMarketPrice) {
-      const base = q.previousClose ?? q.regularMarketPrice ?? q.preMarketPrice
-      const change = q.preMarketPrice - base
-      ext = {
-        price: q.preMarketPrice,
-        change,
-        changePct: base ? (change / base) * 100 : 0,
-        type: 'pre',
-      }
-    } else if ((marketState === 'POST' || marketState === 'POSTPOST') && q.postMarketPrice) {
-      const base = q.regularMarketPrice ?? q.postMarketPrice
-      const change = q.postMarketPrice - base
-      ext = {
-        price: q.postMarketPrice,
-        change,
-        changePct: base ? (change / base) * 100 : 0,
-        type: 'post',
+    if (inPre || inPost) {
+      // 시간외(pre 또는 post) 구간 시작 이후의 마지막 유효 체결가를 시간외가로 사용
+      const periodStart = inPre ? tp.pre.start : tp.post.start
+      let idx = timestamps.length - 1
+      while (idx >= 0 && (timestamps[idx] < periodStart || closes[idx] == null)) idx--
+      if (idx >= 0) {
+        const extPrice = closes[idx] as number
+        const change = extPrice - price
+        ext = {
+          price: extPrice,
+          change,
+          changePct: price ? (change / price) * 100 : 0,
+          type: inPre ? 'pre' : 'post',
+        }
       }
     }
 
@@ -59,7 +65,7 @@ export async function fetchUSPrice(ticker: string): Promise<PriceData> {
     priceCache.set(ticker, { data, exp: Date.now() + CACHE_TTL })
     return data
   } catch {
-    // 폴백: chart API
+    // 최종 폴백: 일봉 종가만이라도 (시간외가 없이)
     try {
       const res = await fetch(
         `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`,
