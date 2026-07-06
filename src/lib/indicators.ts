@@ -289,6 +289,7 @@ export type { IndicatorSnapshot } from '@/types/stock'
 export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
   const last = bars.length - 1
   const close = bars[last].close
+  const asOfDate = bars[last].date
 
   const rsi       = ind.rsi[last] ?? null
   const macd      = ind.macd.macdLine[last] ?? null
@@ -415,7 +416,7 @@ export function getSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapsho
   })()
 
   return {
-    close, rsi, macd, signal, histogram,
+    asOfDate, close, rsi, macd, signal, histogram,
     bbUpper, bbMid, bbLower,
     ma5, ma20, ma60, ma120,
     volumeRatio: ind.volumeRatio,

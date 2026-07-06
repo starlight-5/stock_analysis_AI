@@ -6,6 +6,11 @@ import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
 import type { StrategyResult, IndicatorSnapshot } from '@/types/stock'
 
+function todayKST(): string {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
+
 // ─── 타입 ────────────────────────────────────────────────────────
 
 export interface NewsItem {
@@ -101,6 +106,7 @@ export async function fetchYahooNews(ticker: string): Promise<NewsItem[]> {
 
 export function buildPrompt(
   ticker: string,
+  today: string,
   snap: IndicatorSnapshot,
   news: NewsItem[],
   earnings: EarningsData,
@@ -176,6 +182,13 @@ export function buildPrompt(
     return lines.join('\n')
   })()
 
+  const asOfLagDays = Math.round(
+    (new Date(`${today}T00:00:00Z`).getTime() - new Date(`${snap.asOfDate}T00:00:00Z`).getTime()) / 86_400_000
+  )
+  const asOfLabel = asOfLagDays <= 0
+    ? '최신 (오늘 기준 최근 거래일)'
+    : `${asOfLagDays}일 전 — 그 사이 발생한 뉴스·이벤트가 아직 지표에 반영되지 않았을 수 있음`
+
   const entryPriceBlock = entryPrice != null && currentPrice != null ? (() => {
     const pnlPct = (currentPrice - entryPrice) / entryPrice * 100
     const pnlSign = pnlPct >= 0 ? '+' : ''
@@ -189,6 +202,8 @@ export function buildPrompt(
 뉴스의 긍정·부정 sentiment 및 실적 서프라이즈가 기술적 신호와 충돌하면 이를 반드시 반영하고 risks에 명시하세요.
 
 ## 종목 정보
+- 오늘 날짜: ${today}
+- 지표 기준일: ${snap.asOfDate} (${asOfLabel})
 - 티커: ${ticker}
 - 현재가: ${fmtPrice(currentPrice)}
 - 가격 단위: ${priceUnit} (JSON 내 모든 price 필드에 이 단위를 사용할 것)
@@ -289,6 +304,11 @@ ${volatilityBlock}
     - 최근 EPS 서프라이즈가 연속 2회 이상 +10% 초과 시 signal 상향 가중 가능
     - 최근 EPS 서프라이즈가 -10% 이하 발생 시 signal 하향 가중 및 risks에 포함
     - 실적 이력이 없으면 해당 규칙은 무시하고 기술적 지표만으로 판단
+14. 뉴스·지표 시점 판단 (오늘 날짜 ${today} 기준):
+    - 지표 기준일이 오늘과 ${asOfLagDays}일 차이 나므로(위 "지표 기준일" 참고), ${asOfLagDays >= 3 ? '그 공백 기간 동안의 가격 변동 가능성을 summary 또는 risks에 반드시 언급할 것' : '큰 공백은 없으나 참고할 것'}
+    - 뉴스 날짜가 오늘로부터 7일 이상 지났으면 summary 또는 risks에 "다소 지난 뉴스" 임을 명시하고, 신호 판단은 기술적 지표 비중을 높일 것
+    - 뉴스 날짜가 오늘로부터 2일 이내면 "최신 뉴스"로 간주하여 sentiment를 적극 반영할 것
+    - 뉴스 날짜가 지표 기준일보다 이후라면, 그 뉴스는 아직 기술적 지표에 반영되지 않았을 수 있음을 고려할 것
 `
 }
 
@@ -544,7 +564,7 @@ export async function runStrategyAnalysis(
 
   try {
     const [news, earnings] = await Promise.all([fetchYahooNews(ticker), fetchEarnings(ticker)])
-    const prompt = buildPrompt(ticker, snap, news, earnings)
+    const prompt = buildPrompt(ticker, todayKST(), snap, news, earnings)
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,

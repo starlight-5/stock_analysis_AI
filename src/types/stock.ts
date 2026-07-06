@@ -96,6 +96,7 @@ export interface StrategyResult {
 
 // ─── 지표 스냅샷 (최신값 요약) ────────────────────────────────────
 export interface IndicatorSnapshot {
+  asOfDate: string  // 이 스냅샷(종가·지표)의 실제 거래일 기준일 ("YYYY-MM-DD")
   close: number
   rsi: number | null
   macd: number | null

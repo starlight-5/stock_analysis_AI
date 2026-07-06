@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
     // 4. 뉴스 + 실적 병렬 fetch
     const [news, earnings] = await Promise.all([fetchYahooNews(ticker), fetchEarnings(ticker)])
 
-    const prompt = buildPrompt(ticker, snap, news, earnings, positionContext, entryPrice)
+    const prompt = buildPrompt(ticker, todayKST(), snap, news, earnings, positionContext, entryPrice)
 
     // 5. Gemini REST API 호출
     const response = await fetch(
@@ -235,6 +235,7 @@ export async function POST(req: NextRequest) {
     console.warn(`[API 오류 우회] ${e.message} → 규칙 기반 분석 전략을 대신 제공합니다.`)
 
     const fallbackSnap: IndicatorSnapshot = snap ?? {
+      asOfDate: todayKST(),
       close: 100000, rsi: 50, macd: 0, signal: 0, histogram: 0,
       bbUpper: 110000, bbMid: 100000, bbLower: 90000,
       ma5: 100000, ma20: 100000, ma60: 100000, ma120: 100000,

@@ -12,11 +12,13 @@ import { useRefreshTick } from '@/hooks/useRefreshTick'
 function deriveSnapshot(bars: OHLCVBar[], ind: Indicators): IndicatorSnapshot {
   const last = (arr: (number | null)[]) => arr[arr.length - 1] ?? null
   const close = bars[bars.length - 1].close
+  const asOfDate = bars[bars.length - 1].date
   const bbUpper = last(ind.bollinger.upper)
   const bbLower = last(ind.bollinger.lower)
   const ma5  = last(ind.ma.ma5)
   const ma20 = last(ind.ma.ma20)
   return {
+    asOfDate,
     close,
     rsi:       last(ind.rsi),
     macd:      last(ind.macd.macdLine),
