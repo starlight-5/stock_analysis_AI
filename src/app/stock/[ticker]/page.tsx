@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import StockChart from '@/components/StockChart'
 import StrategyPanel from '@/components/StrategyPanel'
 import IndicatorExplainer from '@/components/IndicatorExplainer'
@@ -49,6 +49,8 @@ const SOURCE_LABEL: Record<string, string> = {
 export default function StockDetailPage() {
   const params = useParams()
   const ticker = (params?.ticker as string ?? '').toUpperCase()
+  const searchParams = useSearchParams()
+  const preferSource = searchParams.get('from') === 'recommendation' ? 'recommendation' : undefined
 
   const [bars, setBars]               = useState<OHLCVBar[]>([])
   const [indicators, setInd]          = useState<Indicators | null>(null)
@@ -64,6 +66,7 @@ export default function StockDetailPage() {
   const [isFallback, setIsFallback]     = useState(false)
   const [fromCache, setFromCache]       = useState(false)
   const [fromDB, setFromDB]             = useState(false)
+  const [fromRecommendation, setFromRecommendation] = useState(false)
   const [isGeminiAnalysis, setIsGemini] = useState(false)
 
   // ── 실시간 현재가 (5분 tick 동기화) ────────────────────────────
@@ -107,7 +110,7 @@ export default function StockDetailPage() {
       const res = await fetch('/api/strategy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, forceRefresh: force, entryPrice }),
+        body: JSON.stringify({ ticker, forceRefresh: force, entryPrice, preferSource }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -118,27 +121,18 @@ export default function StockDetailPage() {
       setIsFallback(!!data.fallbackMode)
       setFromCache(!!data.fromCache)
       setFromDB(!!data.fromDB)
+      setFromRecommendation(!!data.fromRecommendation)
     } catch (e: any) {
       setAnalyzeError(`분석에 실패했습니다: ${e.message}`)
     } finally {
       setAnalyzing(false)
     }
-  }, [ticker])
+  }, [ticker, preferSource])
 
-  // 활성 포지션이 있으면 페이지 진입 시 DB 전략 자동 로드 (Gemini 없음)
+  // 페이지 진입 시 저장된 전략 자동 로드 (포지션 → 오늘의 추천 → 캐시 순, Gemini 재호출 없음)
   useEffect(() => {
     if (!ticker) return
-    let cancelled = false
-    fetch('/api/positions')
-      .then(r => r.ok ? r.json() : [])
-      .then((positions: any[]) => {
-        if (cancelled) return
-        if (Array.isArray(positions) && positions.some(p => p.ticker === ticker && p.status === 'active')) {
-          runAnalyze(false)
-        }
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
+    runAnalyze(false)
   }, [ticker, runAnalyze])
 
   // 버튼 클릭 → 항상 Gemini 재분석 (force=true)
@@ -270,6 +264,7 @@ export default function StockDetailPage() {
             isFallback={isFallback}
             fromCache={fromCache}
             fromDB={fromDB}
+            fromRecommendation={fromRecommendation}
             isGeminiAnalysis={isGeminiAnalysis}
             livePrice={livePrice?.price ?? null}
             liveExt={livePrice?.ext ?? null}

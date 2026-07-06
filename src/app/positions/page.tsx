@@ -103,7 +103,7 @@ const PositionCard = memo(function PositionCard({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={() => navigate(`/stock/${pos.ticker}`)}
+              onClick={() => navigate(`/stock/${pos.ticker}?from=position`)}
               style={{ fontSize: 15, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--color-text-primary)' }}
             >
               {pos.ticker}

@@ -171,13 +171,14 @@ interface Props {
   isFallback: boolean
   fromCache: boolean
   fromDB?: boolean
+  fromRecommendation?: boolean
   livePrice?: number | null
   liveExt?: import('@/types/price').ExtInfo | null
   onAnalyze: (entryPrice?: number) => void
 }
 
 export default function StrategyPanel({
-  ticker, name, strategy, snapshot, isLoading, isGeminiAnalysis, isFallback, fromCache, fromDB,
+  ticker, name, strategy, snapshot, isLoading, isGeminiAnalysis, isFallback, fromCache, fromDB, fromRecommendation,
   livePrice, liveExt,
   onAnalyze,
 }: Props) {
@@ -328,7 +329,7 @@ export default function StrategyPanel({
             margin: '0 auto 12px',
           }} />
           <div style={{ marginBottom: 4 }}>
-            {isGeminiAnalysis ? '지표 계산 + Gemini AI 분석 중' : '포지션 전략 로드 중'}
+            {isGeminiAnalysis ? '지표 계산 + Gemini AI 분석 중' : '저장된 전략 확인 중'}
           </div>
           {isGeminiAnalysis && <div style={{ fontSize: 11 }}>약 5~10초 소요됩니다</div>}
         </div>
@@ -371,7 +372,15 @@ export default function StrategyPanel({
                 포지션 등록 전략
               </span>
             )}
-            {fromCache && !fromDB && (
+            {fromRecommendation && !fromDB && (
+              <span style={{
+                fontSize: 11, padding: '1px 7px', borderRadius: 10,
+                background: '#FFF3E0', color: '#E65100', border: '0.5px solid #FFB74D',
+              }}>
+                오늘의 추천 전략
+              </span>
+            )}
+            {fromCache && !fromDB && !fromRecommendation && (
               <span style={{
                 fontSize: 11, padding: '1px 7px', borderRadius: 10,
                 background: '#EEF0F8', color: '#4B5DA0', border: '0.5px solid #9BAAD4',

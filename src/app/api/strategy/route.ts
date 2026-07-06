@@ -13,6 +13,11 @@ import {
 } from '@/lib/strategyAnalyzer'
 import type { StrategyResult, IndicatorSnapshot } from '@/types/stock'
 
+function todayKST(): string {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
+
 // ─── 전략 캐시 (10분 TTL) ────────────────────────────────────────
 ;(globalThis as any).__strategyCache ??= new Map()
 const strategyCache: Map<string, { data: object; expiresAt: number }> =
@@ -128,6 +133,7 @@ export async function POST(req: NextRequest) {
     ticker = ticker.toUpperCase()
     const isKR = /^\d{6}$/.test(ticker)
     const forceRefresh = !!body.forceRefresh
+    const preferRecommendation = body.preferSource === 'recommendation'
     const entryPrice: number | undefined =
       typeof body.entryPrice === 'number' && isFinite(body.entryPrice) && body.entryPrice > 0
         ? body.entryPrice
@@ -137,18 +143,31 @@ export async function POST(req: NextRequest) {
     const userId = (session?.user as any)?.id as string | undefined
 
     if (!forceRefresh) {
-      // 1순위: DB 포지션 전략
-      if (userId) {
-        const position = await prisma.position.findFirst({
-          where: { userId, ticker, status: 'active' },
-        })
-        if (position) {
-          const result = await fetchStockData(ticker)
-          const currentSnap = getSnapshot(result.bars, calcIndicators(result.bars))
-          return NextResponse.json({ strategy: parsePositionToStrategy(position), snapshot: currentSnap, fromDB: true })
-        }
+      // 포지션 등록 여부 + 오늘의 추천 여부를 함께 확인하고,
+      // 어느 목록(포지션/추천)에서 들어왔는지(preferSource)에 따라 우선순위를 정한다.
+      // 선호하는 쪽에 데이터가 없으면 다른 쪽으로 자연스럽게 폴백한다.
+      const position = userId
+        ? await prisma.position.findFirst({ where: { userId, ticker, status: 'active' } })
+        : null
+      const rec = await prisma.dailyRecommendation.findUnique({
+        where: { date_ticker: { date: todayKST(), ticker } },
+      })
+
+      const usePosition = !!position && (!preferRecommendation || !rec)
+      if (usePosition) {
+        const result = await fetchStockData(ticker)
+        const currentSnap = getSnapshot(result.bars, calcIndicators(result.bars))
+        return NextResponse.json({ strategy: parsePositionToStrategy(position!), snapshot: currentSnap, fromDB: true })
       }
-      // 2순위: 서버 캐시
+      if (rec) {
+        return NextResponse.json({
+          strategy: rec.strategy,
+          snapshot: rec.snapshot,
+          fromRecommendation: true,
+          fallbackMode: rec.fallback,
+        })
+      }
+      // 서버 캐시
       const cached = getCachedStrategy(ticker)
       if (cached) return NextResponse.json({ ...cached, fromCache: true })
       // 데이터 없음 → 빈 화면

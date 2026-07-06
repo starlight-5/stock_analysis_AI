@@ -60,7 +60,7 @@ function StockCard({ stock }: { stock: StockRec }) {
 
   return (
     <div
-      onClick={() => router.push(`/stock/${stock.ticker}`)}
+      onClick={() => router.push(`/stock/${stock.ticker}?from=recommendation`)}
       style={{
         background: 'var(--color-background-card)',
         border: '0.5px solid var(--color-border-primary)',
