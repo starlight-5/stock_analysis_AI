@@ -97,7 +97,7 @@ async function callGeminiForPicks(apiKey: string, market: 'us' | 'kr', sector: S
 규칙: ticker는 반드시 6자리 숫자 종목코드, 해당 섹터 관련주, ETF·소형주 제외, 정확히 10개`
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
