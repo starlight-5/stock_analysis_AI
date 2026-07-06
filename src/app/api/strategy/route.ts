@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
+import { fetchLivePrice } from '@/lib/livePrice'
 import {
   fetchYahooNews,
   fetchEarnings,
@@ -197,10 +198,12 @@ export async function POST(req: NextRequest) {
     const geminiApiKey = process.env.GEMINI_API_KEY
     if (!geminiApiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
 
-    // 4. 뉴스 + 실적 병렬 fetch
-    const [news, earnings] = await Promise.all([fetchYahooNews(ticker), fetchEarnings(ticker)])
+    // 4. 뉴스 + 실적 + 실시간 현재가 병렬 fetch
+    const [news, earnings, livePrice] = await Promise.all([
+      fetchYahooNews(ticker), fetchEarnings(ticker), fetchLivePrice(ticker),
+    ])
 
-    const prompt = buildPrompt(ticker, todayKST(), snap, news, earnings, positionContext, entryPrice)
+    const prompt = buildPrompt(ticker, todayKST(), snap, news, earnings, positionContext, entryPrice, livePrice.price)
 
     // 5. Gemini REST API 호출
     const response = await fetch(

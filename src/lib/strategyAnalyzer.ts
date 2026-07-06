@@ -4,6 +4,7 @@
  */
 import { fetchStockData } from '@/lib/dataSource'
 import { calcIndicators, getSnapshot } from '@/lib/indicators'
+import { fetchLivePrice } from '@/lib/livePrice'
 import type { StrategyResult, IndicatorSnapshot } from '@/types/stock'
 
 function todayKST(): string {
@@ -112,6 +113,7 @@ export function buildPrompt(
   earnings: EarningsData,
   positionContext = '',
   entryPrice?: number,
+  livePrice?: number | null,
 ): string {
   const isKR = /^\d{6}$/.test(ticker)
   const fmt = (v: number | null, dec = 2) => v == null ? 'N/A' : v.toFixed(dec)
@@ -134,7 +136,8 @@ export function buildPrompt(
       : ''
 
   const priceUnit = isKR ? '원 단위 정수' : 'USD 소수점 2자리 숫자'
-  const currentPrice = snap.close
+  const currentPrice = livePrice ?? snap.close
+  const priceLabel = livePrice != null ? '(실시간)' : `(${snap.asOfDate} 종가 — 실시간 시세 조회 실패로 대체)`
 
   const bbPos = snap.bbPosition == null
     ? 'N/A'
@@ -205,7 +208,7 @@ export function buildPrompt(
 - 오늘 날짜: ${today}
 - 지표 기준일: ${snap.asOfDate} (${asOfLabel})
 - 티커: ${ticker}
-- 현재가: ${fmtPrice(currentPrice)}
+- 현재가: ${fmtPrice(currentPrice)} ${priceLabel}
 - 가격 단위: ${priceUnit} (JSON 내 모든 price 필드에 이 단위를 사용할 것)
 ${entryPriceBlock}
 ${positionContext}
@@ -563,8 +566,10 @@ export async function runStrategyAnalysis(
   }
 
   try {
-    const [news, earnings] = await Promise.all([fetchYahooNews(ticker), fetchEarnings(ticker)])
-    const prompt = buildPrompt(ticker, todayKST(), snap, news, earnings)
+    const [news, earnings, livePrice] = await Promise.all([
+      fetchYahooNews(ticker), fetchEarnings(ticker), fetchLivePrice(ticker),
+    ])
+    const prompt = buildPrompt(ticker, todayKST(), snap, news, earnings, '', undefined, livePrice.price)
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`,
