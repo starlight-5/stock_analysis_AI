@@ -204,6 +204,7 @@ export default function RecommendationsPage() {
   const [data, setData]       = useState<RecommendationsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState<string>('all')
+  const [sectorFilter, setSectorFilter] = useState<string>('all')
   const [generating, setGenerating] = useState(false)
   const [genLog, setGenLog]   = useState<string | null>(null)
 
@@ -246,10 +247,17 @@ export default function RecommendationsPage() {
     { key: 'watch',      label: '관망' },
   ]
 
-  const filteredSectors = data?.sectors.map(s => ({
-    ...s,
-    stocks: filter === 'all' ? s.stocks : s.stocks.filter(st => st.signal === filter),
-  })).filter(s => s.stocks.length > 0) ?? []
+  const SECTOR_FILTERS = [
+    { key: 'all', label: '전체' },
+    ...(data?.sectors.map(s => ({ key: s.sectorId, label: `${s.sectorEmoji} ${s.sectorName}` })) ?? []),
+  ]
+
+  const filteredSectors = data?.sectors
+    .filter(s => sectorFilter === 'all' || s.sectorId === sectorFilter)
+    .map(s => ({
+      ...s,
+      stocks: filter === 'all' ? s.stocks : s.stocks.filter(st => st.signal === filter),
+    })).filter(s => s.stocks.length > 0) ?? []
 
   return (
     <AuthGuard>
@@ -293,6 +301,28 @@ export default function RecommendationsPage() {
             </pre>
           )}
         </div>
+
+        {/* 섹터 필터 */}
+        {SECTOR_FILTERS.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+            {SECTOR_FILTERS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setSectorFilter(f.key)}
+                style={{
+                  fontSize: 12, padding: '5px 14px', borderRadius: 20,
+                  border: '0.5px solid var(--color-border-secondary)',
+                  background: sectorFilter === f.key ? 'var(--color-accent)' : 'var(--color-background-secondary)',
+                  color: sectorFilter === f.key ? '#fff' : 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* 시그널 필터 */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -341,9 +371,12 @@ export default function RecommendationsPage() {
         ))}
 
         {/* 필터 결과 없음 */}
-        {!loading && data && !data.empty && filteredSectors.length === 0 && filter !== 'all' && (
+        {!loading && data && !data.empty && filteredSectors.length === 0 && (filter !== 'all' || sectorFilter !== 'all') && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-secondary)', fontSize: 13 }}>
-            '{SIGNAL_FILTERS.find(f => f.key === filter)?.label}' 종목이 없습니다.
+            {[
+              sectorFilter !== 'all' && SECTOR_FILTERS.find(f => f.key === sectorFilter)?.label,
+              filter !== 'all' && SIGNAL_FILTERS.find(f => f.key === filter)?.label,
+            ].filter(Boolean).join(' · ')} 종목이 없습니다.
           </div>
         )}
       </div>
