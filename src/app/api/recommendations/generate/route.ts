@@ -1,10 +1,13 @@
 /**
  * GET /api/recommendations/generate
- * Vercel Cron에 의해 매일 06:00 KST (21:00 UTC)에 자동 호출됩니다.
- * Vercel이 자동으로 Authorization: Bearer <CRON_SECRET> 헤더를 추가합니다.
+ * GitHub Actions가 매일 06:00~07:55 KST 사이 5분 간격으로 자동 호출합니다
+ * (.github/workflows/recommendations-generate.yml, Authorization: Bearer <CRON_SECRET>).
  * 어드민 계정으로 로그인된 상태에서 직접 호출하면 CRON_SECRET 없이도 실행됩니다.
  *
- * 이미 처리된 종목은 건너뛰고, 50초 예산 초과 시 중단했다가 다음 호출에서 이어서 처리합니다.
+ * 이미 처리된 종목은 건너뛰고, 시간 예산 초과 시 중단했다가 다음 호출에서 이어서 처리합니다.
+ * 종목 1개 분석(Gemini 호출 포함)은 이론상 최대 수십 초가 걸릴 수 있어, 고정 예산 대신
+ * "지금까지 관찰된 가장 느린 처리 시간"을 기준으로 다음 종목을 시작해도 안전한지 판단합니다
+ * (curl --max-time 58초 · Vercel 함수 제한 60초 대비 안전 마진 확보).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
@@ -12,9 +15,11 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { runStrategyAnalysis } from '@/lib/strategyAnalyzer'
 
-const GEMINI_DELAY_MS = 2500
+const GEMINI_DELAY_MS = 4500  // Gemini 분당 요청 한도(RPM) 대비 여유 확보 (호출 간격 ~7~9초 → 분당 ~7~9회)
 const YF_DELAY_MS     = 300
-const TIME_BUDGET_MS  = 52_000  // 52초 → Vercel 60초 제한 전에 안전하게 종료
+const HARD_DEADLINE_MS = 58_000       // curl --max-time(58초)·Vercel 함수 제한(60초) 대비 안전 마진
+const FIRST_ITER_ESTIMATE_MS = 38_000 // 첫 종목 처리 전 관찰치가 없을 때 쓰는 보수적 추정치 (GEMINI_DELAY_MS 반영)
+const ITER_SAFETY_FACTOR = 1.3        // 관찰된 최대 처리 시간에 곱하는 여유율
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -183,6 +188,7 @@ export async function GET(req: NextRequest) {
     log.push(`상위 섹터: ${top3.map(s => s.name).join(', ')}`)
 
     let timeExceeded = false
+    let observedMaxIterMs: number | null = null  // 종목 1개 처리에 걸린 시간 중 관찰된 최댓값 (아직 없으면 null)
 
     for (const sector of top3) {
       if (timeExceeded) {
@@ -191,7 +197,9 @@ export async function GET(req: NextRequest) {
       }
 
       const alreadyDone = doneBySecor[sector.id] ?? 0
-      if (alreadyDone >= 40) {
+      // 20 = Gemini 1회 호출분(미국 10 + 한국 10). 호출 빈도가 높아진 만큼, 딱 한 라운드만
+      // 채워지면 그 뒤로는 Gemini 재호출 없이 건너뛰도록 기준을 낮게 잡는다.
+      if (alreadyDone >= 20) {
         log.push(`[${sector.emoji} ${sector.name}] 완료됨 (${alreadyDone}종목)`)
         continue
       }
@@ -216,12 +224,18 @@ export async function GET(req: NextRequest) {
       log.push(`  선정 ${allStocks.length}개 중 미처리 ${pending.length}개 분석 시작`)
 
       for (const stock of pending) {
-        if (Date.now() - startMs > TIME_BUDGET_MS) {
+        // FIRST_ITER_ESTIMATE_MS는 이미 보수적 최악치라 배율을 또 곱하지 않고,
+        // 실제 관찰치(observedMaxIterMs)에만 여유율을 적용한다.
+        const estimatedNext = observedMaxIterMs != null
+          ? observedMaxIterMs * ITER_SAFETY_FACTOR
+          : FIRST_ITER_ESTIMATE_MS
+        if (Date.now() - startMs + estimatedNext > HARD_DEADLINE_MS) {
           log.push('  ⏸ 시간 제한 — 다음 호출에서 이어서 처리됩니다')
           timeExceeded = true
           break
         }
 
+        const iterStart = Date.now()
         try {
           await sleep(YF_DELAY_MS)
           const analysis = await runStrategyAnalysis(stock.ticker, geminiApiKey)
@@ -250,6 +264,9 @@ export async function GET(req: NextRequest) {
         } catch (e: any) {
           summary[sector.id].fail++
           log.push(`  ✗ ${stock.ticker}: ${e.message}`)
+        } finally {
+          const iterMs = Date.now() - iterStart
+          observedMaxIterMs = observedMaxIterMs == null ? iterMs : Math.max(observedMaxIterMs, iterMs)
         }
       }
     }

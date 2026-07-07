@@ -580,7 +580,8 @@ export async function runStrategyAnalysis(
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 2048 },
         }),
-        signal: AbortSignal.timeout(30000),
+        // 배치 생성(generate) 루프 전용 — 시간 예산이 빠듯해 짧게 제한 (수동 재분석은 /api/strategy의 별도 호출/타임아웃 사용)
+        signal: AbortSignal.timeout(15000),
       }
     )
 
