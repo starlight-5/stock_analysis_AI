@@ -20,6 +20,7 @@ const YF_DELAY_MS     = 300
 const HARD_DEADLINE_MS = 58_000       // curl --max-time(58초)·Vercel 함수 제한(60초) 대비 안전 마진
 const FIRST_ITER_ESTIMATE_MS = 38_000 // 첫 종목 처리 전 관찰치가 없을 때 쓰는 보수적 추정치 (GEMINI_DELAY_MS 반영)
 const ITER_SAFETY_FACTOR = 1.3        // 관찰된 최대 처리 시간에 곱하는 여유율
+const PICK_ESTIMATE_MS = 26_000       // 섹터 종목 선정 1회의 최악치 (GEMINI_DELAY_MS 4.5초 + Gemini 병렬 호출 최대 20초 + 여유)
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -202,6 +203,14 @@ export async function GET(req: NextRequest) {
       if (alreadyDone >= 20) {
         log.push(`[${sector.emoji} ${sector.name}] 완료됨 (${alreadyDone}종목)`)
         continue
+      }
+
+      // 종목별 루프와 별개로, "새 섹터 종목 선정 시도" 자체도 시간 예산을 넘길 수 있어
+      // (지연 + Gemini 병렬 호출 최대 20초) 시작 전에 남은 시간을 확인한다.
+      if (Date.now() - startMs + PICK_ESTIMATE_MS > HARD_DEADLINE_MS) {
+        log.push(`[${sector.emoji} ${sector.name}] 건너뜀 (시간 부족 — 종목 선정 시도 안 함)`)
+        timeExceeded = true
+        break
       }
 
       log.push(`\n[${sector.emoji} ${sector.name}] 종목 선정 중... (기존 ${alreadyDone}개)`)
