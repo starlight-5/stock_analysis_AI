@@ -123,9 +123,9 @@ function SnapshotGrid({ snap, isKR }: { snap: IndicatorSnapshot; isKR: boolean }
     },
     {
       label: 'MA 크로스',
-      value: ({ golden: '골든', dead: '데드', neutral: '중립' } as Record<typeof snap.maCrossState, string>)[snap.maCrossState],
-      sub: ({ golden: '5일>20일', dead: '5일<20일', neutral: '' } as Record<typeof snap.maCrossState, string>)[snap.maCrossState],
-      color: snap.maCrossState === 'golden' ? 'var(--color-positive-dark)' : snap.maCrossState === 'dead' ? 'var(--color-negative-dark)' : 'var(--color-text-secondary)',
+      value: ({ golden: '골든', dead: '데드', above: '상향', below: '하향', neutral: '중립' } as Record<typeof snap.maCrossState, string>)[snap.maCrossState],
+      sub: ({ golden: '5일>20일', dead: '5일<20일', above: '5일>20일', below: '5일<20일', neutral: '' } as Record<typeof snap.maCrossState, string>)[snap.maCrossState],
+      color: snap.maCrossState === 'golden' || snap.maCrossState === 'above' ? 'var(--color-positive-dark)' : snap.maCrossState === 'dead' || snap.maCrossState === 'below' ? 'var(--color-negative-dark)' : 'var(--color-text-secondary)',
     },
     {
       label: '거래량 비율', value: `${snap.volumeRatio.toFixed(2)}x`,
